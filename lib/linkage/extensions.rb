@@ -1,0 +1,1 @@
+require 'linkage/extensions/class'

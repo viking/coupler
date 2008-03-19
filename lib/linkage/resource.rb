@@ -1,10 +1,18 @@
 module Linkage
   class Resource
-    attr_reader :name, :table, :abstract_base, :records
+    cattr_accessor :names
+    self.names = []
+
+    attr_reader :name, :table, :abstract_base, :record
 
     def initialize(options = {})
       options = HashWithIndifferentAccess.new(options)
-      @name  = options[:name]
+      @name   = options[:name]
+      if self.class.names.include?(@name)
+        raise "duplicate name"
+      else
+        self.names << @name
+      end
       ActiveRecord::Base.configurations[@name] = options[:connection]
 
       # create an abstract base class
@@ -13,11 +21,8 @@ module Linkage
       end
       @abstract_base.establish_connection(@name)
 
-      @records = options[:tables].inject(HashWithIndifferentAccess.new) do |hsh, table_name|
-        hsh[table_name] = klass = @abstract_base.subclass("Table")
-        klass.set_table_name(table_name)
-        hsh
-      end
+      @record = @abstract_base.subclass("Table")
+      @record.set_table_name(options[:table])
     end
   end
 end

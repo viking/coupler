@@ -5,8 +5,6 @@ require 'yaml'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'linkage'
-require 'linkage/resource'
-require 'extensions/class'
 
 Spec::Runner.configure do |config|
   # == Mock Framework
