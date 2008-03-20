@@ -7,10 +7,7 @@ module Linkage
         options = HashWithIndifferentAccess.new(options)
         @name      = options[:name]
         @coerce_to = options[:coerce_to]
-
-        if options[:conditions]
-          @regexp = Regexp.new(options[:conditions][:regexp])
-        end
+        @regexp    = options[:regexp] ? Regexp.new(options[:regexp]) : nil
       end
 
       def valid?(value)
@@ -22,6 +19,8 @@ module Linkage
       end
 
       def convert(value)
+        return nil  if value.nil?
+
         case @coerce_to
         when 'integer'
           value.to_i
@@ -33,6 +32,8 @@ module Linkage
       end
     end
 
+    @@transformers = {}
+
     attr_reader :name, :formula, :parameters, :default
 
     def initialize(options)
@@ -41,6 +42,12 @@ module Linkage
       @formula    = options[:formula]
       @default    = options[:default]
       @parameters = []
+
+      if @@transformers.keys.include?(@name)
+        raise "duplicate name"
+      else
+        @@transformers[@name] = self
+      end
 
       @formula_template = @formula.dup
       @default_template = @default ? @default.dup : "nil"
@@ -58,7 +65,13 @@ module Linkage
       true
     end
 
-    def transform(*values)
+    def transform(hsh)
+      if hsh.is_a?(Hash)
+        values = @parameters.collect { |p| hsh[p.name] }
+      else
+        raise TypeError, "expected Hash"
+      end
+
       if valid?(*values)
         tmp = values
         values = []
@@ -69,6 +82,10 @@ module Linkage
       else
         eval(@default_template)
       end
+    end
+
+    def self.find(name)
+      @@transformers[name]
     end
   end
 end

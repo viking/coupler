@@ -1,44 +1,52 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Transformer do
-  before(:each) do
-    @opts = { 
-      'name'    => 'optimus_prime',
-      'formula' => 'x * 5',
-      'default' => 'x',
-    }
+
+  @@num = 1
+  def xformer_name
+    @@num += 1
+    "optimus_prime_#{@@num-1}"
   end
 
-  def create_xformer
-    @xformer = Linkage::Transformer.new(@opts)
+  def create_xformer(options = {})
+    options = {
+      'formula' => 'x * 5',
+      'default' => 'x',
+    }.merge(options)
+    options['name'] = xformer_name  unless options['name']
+
+    Linkage::Transformer.new(options)
   end
 
   it "should have a name" do
-    create_xformer
-    @xformer.name.should == 'optimus_prime'
+    xf = create_xformer
+    xf.name.should match(/optimus_prime_\d+/)
   end
 
   it "should have a formula" do
-    create_xformer
-    @xformer.formula.should == 'x * 5'
+    xf = create_xformer
+    xf.formula.should == 'x * 5'
   end
 
   it "should have a default" do
-    create_xformer
-    @xformer.default.should == 'x'
+    xf = create_xformer
+    xf.default.should == 'x'
   end
 
   it "should not raise an error without a default" do
-    @opts['default'] = nil
-    create_xformer
+    create_xformer('default' => nil)
+  end
+
+  it "should raise an error if a transformer has a duplicate name" do
+    xf = create_xformer
+    lambda { create_xformer('name' => xf.name) }.should raise_error
   end
 
   describe "with 1 parameter" do
 
     describe "with no options" do
       before(:each) do
-        @opts['parameters'] = [ 'x' ]
-        create_xformer
+        @xformer = create_xformer('parameters' => ['x'])
       end
 
       it "should have 1 parameter" do
@@ -57,28 +65,28 @@ describe Linkage::Transformer do
 
       describe "when transforming" do
         it "should multiply integer by 5" do
-          @xformer.transform(5).should == 25
+          @xformer.transform('x' => 5).should == 25
         end
 
         it "should add by 5" do
-          @opts['formula'] = "x + 5"
-          create_xformer
-          @xformer.transform(5).should == 10
+          xf = create_xformer('formula' => 'x + 5', 'parameters' => ['x'])
+          xf.transform('x' => 5).should == 10
         end
       end
     end
 
     describe "with options" do
       before(:each) do
-        @opts['parameters'] = [
-          { 
-            'name' => 'x',
-            'coerce_to' => 'integer',
-            'conditions' => { 'regexp' => '\d+' }
-          }
-        ]
-        @opts['default'] = %{"foo"}
-        create_xformer
+        @xformer = create_xformer({
+          'default' => %{"foo"},
+          'parameters' => [
+            { 
+              'name' => 'x',
+              'coerce_to' => 'integer',
+              'regexp' => '\d+'
+            }
+          ]
+        })
       end
 
       it "should have 1 parameter" do
@@ -109,11 +117,11 @@ describe Linkage::Transformer do
 
       describe "when transforming" do
         it "should coerce string to integer before evaluating formula" do
-          @xformer.transform("5").should == 25
+          @xformer.transform('x' => "5").should == 25
         end
 
         it "should return the default value when parameter doesn't meet conditions" do
-          @xformer.transform("blah").should == "foo"
+          @xformer.transform('x' => "blah").should == "foo"
         end
       end
     end
@@ -123,9 +131,7 @@ describe Linkage::Transformer do
 
     describe "with no options" do
       before(:each) do
-        @opts['parameters'] = %w{x y z}
-        @opts['formula']    = "x * y * z"
-        create_xformer
+        @xformer = create_xformer('parameters' => %w{x y z}, 'formula' => 'x * y * z')
       end
 
       it "should have 3 parameters" do
@@ -140,21 +146,22 @@ describe Linkage::Transformer do
 
       describe "when transforming" do
         it "should multiply all parameters" do
-          @xformer.transform(2, 3, 4).should == 24
+          @xformer.transform('x' => 2, 'y' => 3, 'z' => 4).should == 24
         end
       end
     end
 
     describe "with options" do
       before(:each) do
-        @opts['parameters'] = [
-          { 'name' => 'x', 'coerce_to' => 'string' },
-          { 'name' => 'y', 'coerce_to' => 'integer', 'conditions' => { 'regexp' => '^\d+$' } },
-          { 'name' => 'z', 'coerce_to' => 'integer' }
-        ]
-        @opts['formula'] = "x * y * z"
-        @opts['default'] = "y"
-        create_xformer
+        @xformer = create_xformer({
+          'parameters' => [
+            { 'name' => 'x', 'coerce_to' => 'string' },
+            { 'name' => 'y', 'coerce_to' => 'integer', 'regexp' => '^\d+$' },
+            { 'name' => 'z', 'coerce_to' => 'integer' }
+          ],
+          'formula' => 'x * y * z',
+          'default' => 'y'
+        })
       end
 
       it "should have 3 parameters" do
@@ -173,59 +180,29 @@ describe Linkage::Transformer do
 
       describe "when transforming" do
         it "should return the evaluated formula if all parameters meet conditions" do
-          @xformer.transform(2, "3", 4).should == "2" * 12
+          @xformer.transform('x' => 2, 'y' => "3", 'z' => 4).should == "2" * 12
         end
 
         it "should return the default value if any parameters don't meet conditions" do
-          @xformer.transform(2, "bibbity boppity", 5).should == "bibbity boppity"
+          @xformer.transform('x' => 2, 'y' => "bibbity boppity", 'z' => 5).should == "bibbity boppity"
         end
       end
     end
   end
 
-#  describe "#transform" do
-#
-#    describe "with 1 parameter" do
-#
-#      it "should have 1 parameter" do
-#      end
-#      it 'should multiply value by 5' do
-#        create_xformer
-#        @xformer.transform(5).should == 25
-#      end
-#
-#      it "should convert value to integer before transforming" do
-#        @opts['coerce_to'] = 'integer'
-#        create_xformer
-#        @xformer.transform("5").should == 25
-#      end
-#
-#      it "should convert value to string before transforming" do
-#        @opts['coerce_to'] = 'string'
-#        create_xformer
-#        @xformer.transform(5).should == "55555"
-#      end
-#
-#      it "should not convert if value doesn't match regex" do
-#        @opts['conditions'] = { 'regex' => '^\d+$' }
-#        create_xformer
-#        @xformer.transform("123foo").should == "123foo"
-#      end
-#    end
-#
-#    describe "with 3 parameters" do
-#      before(:each) do
-#        @opts['parameters'] = %w{x y z}
-#        @opts['formula']    = "x * y * z"
-#        @opts['name']       = "multiply_all"
-#      end
-#
-#      it "should return the product of 3 values" do
-#        create_xformer
-#        @xformer.transform(2, 3, 4).should == 24
-#      end
-#    end
-#  end
+  describe ".find" do
+    it "should find a previously created transformer by name" do
+      xf = create_xformer
+      Linkage::Transformer.find(xf.name).should == xf
+    end
+  end
+
+  describe "#transform" do
+    it "should require a Hash as an argument" do
+      xf = create_xformer('parameters' => ['x'])
+      lambda { xf.transform("foo") }.should raise_error
+    end
+  end
 end
 
 describe Linkage::Transformer::Parameter do
@@ -243,7 +220,7 @@ describe Linkage::Transformer::Parameter do
     p = Linkage::Transformer::Parameter.new({
       'name' => 'x',
       'coerce_to' => 'integer',
-      'conditions' => { 'regexp' => '\d+' }
+      'regexp' => '\d+'
     })
     p.regexp.should == /\d+/
   end
@@ -257,7 +234,7 @@ describe Linkage::Transformer::Parameter do
     it "should return true if there is a regexp and value matches" do
       p = Linkage::Transformer::Parameter.new({
         'name' => 'x',
-        'conditions' => { 'regexp' => '\d+' }
+        'regexp' => '\d+'
       })
       p.valid?(123).should be_true
     end
@@ -277,6 +254,11 @@ describe Linkage::Transformer::Parameter do
     it "should convert value to String if 'string'" do
       p = Linkage::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'string')
       p.convert(123).should == "123"
+    end
+
+    it "should not convert a nil to anything" do
+      p = Linkage::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'string')
+      p.convert(nil).should == nil
     end
   end
 end

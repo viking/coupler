@@ -15,17 +15,41 @@ resources:
 transformers:
   - name: ssn_filter
     parameters:
-      - x
-    conditions:
-      regex: "(\d)\1{8}"
+      - name: ssn
+        regex: "(\d)\1{8}"
     formula: "nil"
+    default: "ssn"
+  - name: ega
+    parameters:
+      - name: gwg
+        coerce_to: integer
+      - name: gwe
+        coerce_to: integer
+    formula: |
+      ega = (gwg.nil? || gwg == 0) ? gwe : gwg
+      (20..48).include?(ega) ? ega : nil
+    default: "nil"
 
 scenarios:
-  - name: family
+  - name: family_ssn
     type: self-join
     resource: birth
     transformations:
-      MomSSN: ssn_filter
+      - name: MomSSN
+        transformer: ssn_filter
+        arguments:
+          ssn: MomSSN
     matchers:
-      - MomSSN: 
-          formula: "(!a.nil? && a == b) ? 1 : 0"
+      - field: MomSSN
+        formula: &equal_formula "(!a.nil? && a == b) ? 100 : 0"
+
+  - name: family_name
+    type: self-join
+    resource: birth
+    matchers:
+      - field: MomNameMaidenLast
+        formula: *equal_formula 
+      - field: MomNameFirst
+        formula: *equal_formula 
+      - field: MomDOB
+        formula: *equal_formula

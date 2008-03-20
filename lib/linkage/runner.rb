@@ -5,9 +5,9 @@ module Linkage
       runner = self.new(spec)
     end
 
-    attr_reader :resources
     def initialize(spec)
-      @resources = spec['resources'].collect { |config| Linkage::Resource.new(config) }
+      @resources    = spec['resources'].collect    { |config| Linkage::Resource.new(config) }
+      @transformers = spec['transformers'].collect { |config| Linkage::Transformer.new(config) }
     end
   end
 end

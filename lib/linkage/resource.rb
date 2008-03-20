@@ -1,17 +1,16 @@
 module Linkage
   class Resource
-    cattr_accessor :names
-    self.names = []
+    @@resources = {}
 
     attr_reader :name, :table, :abstract_base, :record
 
     def initialize(options = {})
       options = HashWithIndifferentAccess.new(options)
       @name   = options[:name]
-      if self.class.names.include?(@name)
+      if @@resources.keys.include?(@name)
         raise "duplicate name"
       else
-        self.names << @name
+        @@resources[@name] = self
       end
       ActiveRecord::Base.configurations[@name] = options[:connection]
 
@@ -21,8 +20,14 @@ module Linkage
       end
       @abstract_base.establish_connection(@name)
 
+      table = options[:table]
       @record = @abstract_base.subclass("Table")
-      @record.set_table_name(options[:table])
+      @record.set_table_name(table[:name])
+      @record.set_primary_key(table[:primary_key])  if table[:primary_key]
+    end
+
+    def self.find(name)
+      @@resources[name]
     end
   end
 end

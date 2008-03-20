@@ -8,33 +8,36 @@ describe Linkage::Resource do
     "birth_#{@@num-1}"
   end
 
+  def create_resource(options = {})
+    options = {
+      'connection' => {
+        'adapter'  => 'sqlite3',
+        'database' => 'db/birth.sqlite3',
+        'timeout'  => 3000
+      },
+      'table' => {
+        'name' => 'birth_all',
+        'primary_key' => 'ID'
+      }
+    }.merge(options)
+    options['name'] ||= resource_name
+    Linkage::Resource.new(options)
+  end
+
   before(:each) do 
-    @copts = { 'adapter' => 'sqlite3', 'database' => 'db/birth.sqlite3', 'timeout' => 3000 }
-    @opts  = { 
-      'name' => resource_name,
-      'connection' => @copts,
-      'table' => 'birth_all'
-    }
-    @resource = Linkage::Resource.new(@opts)
+    @resource = create_resource 
   end
 
   it "should have a name" do
-    @resource.name.should == @opts['name']
-  end
-
-  it "should treat its options hash indifferently" do
-    @opts.delete('name')
-    @opts[:name] = resource_name
-    resource = Linkage::Resource.new(@opts)
-    resource.name.should == @opts[:name]
+    @resource.name.should match(/birth_\d+/) 
   end
 
   it "should raise an error if a resource is created with a conflicting name" do
-    lambda { Linkage::Resource.new(@opts) }.should raise_error
+    lambda { create_resource('name' => @resource.name) }.should raise_error
   end
 
   it "should setup an AR connection to a database" do
-    ActiveRecord::Base.configurations[@resource.name].should == @copts
+    ActiveRecord::Base.configurations[@resource.name]['adapter'].should == 'sqlite3'
   end
 
   it "should create an abstract base class" do
@@ -82,6 +85,16 @@ describe Linkage::Resource do
 
     it "should have a table_name of 'birth_all'" do
       @klass.table_name.should == 'birth_all'
+    end
+
+    it "should have a primary_key of 'ID'" do
+      @klass.primary_key.should == 'ID'
+    end
+  end
+
+  describe ".find" do
+    it "should find previously created resources by name" do
+      Linkage::Resource.find(@resource.name).should == @resource
     end
   end
 end
