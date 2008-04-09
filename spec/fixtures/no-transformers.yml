@@ -17,33 +17,10 @@ resources:
       database: db/scratch.sql
       timeout: 3000
 
-transformers:
-  - name: ssn_filter
-    parameters:
-      - name: ssn
-        regex: "(\d)\1{8}"
-    formula: "nil"
-    default: "ssn"
-  - name: ega
-    parameters:
-      - name: gwg
-        coerce_to: integer
-      - name: gwe
-        coerce_to: integer
-    formula: |
-      ega = (gwg.nil? || gwg == 0) ? gwe : gwg
-      (20..48).include?(ega) ? ega : nil
-    default: "nil"
-
 scenarios:
   - name: family_ssn
     type: self-join
     resource: birth
-    transformations:
-      - name: MomSSN
-        transformer: ssn_filter
-        arguments:
-          ssn: MomSSN
     matchers:
       - field: MomSSN
         formula: &equal_formula "(!a.nil? && a == b) ? 100 : 0"

@@ -1,12 +1,20 @@
+require 'csv'
+require 'weakref'
+require 'progress'
+
 require 'rubygems'
 require 'active_support'
-require 'active_record'
+require 'sqlite3'
+require 'mysql'
+require 'arrayfields'
+require 'ruby-debug'
 
 require 'linkage/extensions'
 require 'linkage/resource'
 require 'linkage/transformer'
 require 'linkage/scenario'
 require 'linkage/runner'
+require 'linkage/cache'
 
 module Linkage
 end

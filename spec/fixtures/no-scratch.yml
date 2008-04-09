@@ -11,11 +11,6 @@ resources:
       database: db/death.sql
       timeout: 3000
     table: death_all
-  - name: scratch
-    connection:
-      adapter: sqlite3
-      database: db/scratch.sql
-      timeout: 3000
 
 transformers:
   - name: ssn_filter
