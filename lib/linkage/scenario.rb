@@ -53,8 +53,8 @@ module Linkage
       @all_fields = (matcher_fields + xform_fields).uniq
       @all_fields.unshift(@resources[0].primary_key)  if @type == 'self-join'
 
-      # conditions
       @conditions = options[:blocking]
+      @limit = options[:limit]  # undocumented and untested, wee!
     end
 
     def run
@@ -66,7 +66,7 @@ module Linkage
         primary_key = resource.primary_key
 
         # select records
-        @num_records   = resource.count.to_i
+        @num_records   = @limit ? @limit : resource.count.to_i
         @record_offset = 0
         progress = Progress.new(@num_records)   if DEBUG
         record_set = grab_records(resource)
@@ -145,14 +145,15 @@ module Linkage
     private
       def grab_records(resource)
         if @num_records > 0 
+          limit = @limit && @limit < 1000 ? @limit : 1000
           if @conditions
             set = resource.select({
-              :limit => 1000, :columns => @all_fields, :conditions => @conditions,
+              :limit => limit, :columns => @all_fields, :conditions => @conditions,
               :offset => @record_offset
             })
           else
             args = @all_fields + [{:offset => @record_offset}]  # this is a bit silly
-            set = resource.select_num(1000, *args)
+            set = resource.select_num(limit, *args)
           end
           @num_records   -= 1000 
           @record_offset += 1000
