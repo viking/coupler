@@ -14,4 +14,4 @@ ActiveRecord::Schema.define do
   end
 end
 conn = ActiveRecord::Base.connection
-100.times { |i| conn.execute("INSERT INTO birth_all VALUES(#{i+1}, #{get_ssn})") }
+10000.times { |i| conn.execute("INSERT INTO birth_all VALUES(#{i+1}, #{get_ssn})") }

@@ -44,9 +44,15 @@ describe Linkage::Cache do
       end
 
       describe "when fetching a GC'd object" do
+        def fake_gc
+          @cache.instance_eval do
+            @cache.keys.each { |k| @cache[k] = :gone }
+            @rev_cache.clear
+          end
+        end
 
         before(:each) do
-          @weakref.stub!(:weakref_alive?).and_return(false, true)
+          fake_gc
           @scratch.stub!(:select_one).with(1).and_return("some awesome data")
         end
 
