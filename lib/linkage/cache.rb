@@ -29,10 +29,7 @@ module Linkage
 
     def fetch(key)
       @fetches += 1
-      begin
-        old_critical = Thread.critical
-        Thread.critical = true
-
+#      begin
         id = @cache[key]
         case id
         when :gone
@@ -46,12 +43,10 @@ module Linkage
             record = recover(key)
           end
         end
-      rescue Exception => boom
-        debugger
-        puts "error!"
-      ensure
-        Thread.critical = old_critical
-      end
+#      rescue Exception => boom
+#        debugger
+#        puts "error!"
+#      end
 
       record
     end

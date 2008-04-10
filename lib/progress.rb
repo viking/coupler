@@ -24,10 +24,11 @@ class Progress
   private
     def draw
       percent = @count.to_f / @total
+      completed = (percent * STEPS).round
       print "%s[%s>%s] %3.2f%" % [
         RESET, 
-        "=" * (percent * STEPS).round, 
-        "_" * ((1 - percent) * STEPS).round,
+        "=" * completed, 
+        "_" * (STEPS - completed),
         percent * 100
       ]
       $stdout.flush
