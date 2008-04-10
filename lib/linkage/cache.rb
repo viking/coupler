@@ -43,7 +43,6 @@ module Linkage
           begin
             record = ObjectSpace._id2ref(id)
           rescue RangeError
-            puts "uncaught"
             record = recover(key)
           end
         end
