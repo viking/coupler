@@ -153,8 +153,8 @@ describe Linkage::Resource do
     end
 
     describe "#create_table" do
-      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9))" do
-        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9))})
+      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
+        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
         @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
       end
 
@@ -297,8 +297,8 @@ describe Linkage::Resource do
     end
 
     describe "#create_table" do
-      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9))" do
-        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9))})
+      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
+        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
         @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
       end
 

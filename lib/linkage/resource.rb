@@ -109,7 +109,8 @@ module Linkage
     end
 
     def create_table(name, primary, *columns)
-      fields = ([primary] + columns).join(", ")
+      key    = primary.split[0]
+      fields = ([primary] + columns + ["PRIMARY KEY (#{key})"]).join(", ")
       connection.query("CREATE TABLE #{name} (#{fields})")
       @table = name
       @primary_key = primary.split(" ")[0]
