@@ -56,6 +56,16 @@ module Linkage
         @formula_template.gsub!(/\b#{last.name}\b/, "values[#{i}]")
         @default_template.gsub!(/\b#{last.name}\b/, "values[#{i}]")   if @default
       end if options[:parameters].is_a?(Array)
+
+      self.instance_eval(<<-EOF, __FILE__, __LINE__)
+        def run_formula(values)
+          #{@formula_template}
+        end
+
+        def run_default(values)
+          #{@default_template}
+        end
+      EOF
     end
 
     def valid?(*values)
@@ -78,9 +88,9 @@ module Linkage
         tmp.each_with_index do |value, i|
           values << @parameters[i].convert(value)
         end
-        eval(@formula_template)
+        run_formula(values)
       else
-        eval(@default_template)
+        run_default(values)
       end
     end
 

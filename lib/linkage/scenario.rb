@@ -5,10 +5,11 @@ module Linkage
       def initialize(options)
         @field = options['field']
         @formula = options['formula']
-      end
-
-      def score(a, b)
-        eval(@formula)
+        self.instance_eval(<<-EOF, __FILE__, __LINE__)
+          def score(a, b)
+            #{@formula}
+          end
+        EOF
       end
     end
 
@@ -49,6 +50,11 @@ module Linkage
       @scoring = options[:scoring]
       @scoring[:groups] = @scoring[:cutlist].keys.sort
       @scoring[:ranges] = @scoring[:groups].collect { |n| eval(@scoring[:cutlist][n]) }
+      self.instance_eval(<<-EOF, __FILE__, __LINE__)
+        def combine_scores(scores)
+          #{@scoring[:formula]}
+        end
+      EOF
       
       @all_fields = (matcher_fields + xform_fields).uniq
       @all_fields.unshift(@resources[0].primary_key)  if @type == 'self-join'
@@ -184,7 +190,7 @@ module Linkage
         end
 
         # combine scores
-        final_score = eval(@scoring[:formula])
+        final_score = combine_scores(scores)
         @scoring[:ranges].each_with_index do |range, i|
           next  unless range.include?(final_score)
           return @scoring[:groups][i], final_score
