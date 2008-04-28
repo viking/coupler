@@ -224,6 +224,13 @@ describe Linkage::Resource do
       Mysql.should_receive(:new).with("localhost", "viking", "pillage", "foo").and_return(@conn)
       @resource.connection.should == @conn
     end
+
+    describe "#select" do
+      it "should change * to birth_all.*" do
+        @conn.should_receive(:prepare).with("SELECT ID, birth_all.* FROM birth_all").and_return(@stmt)
+        @resource.select(:columns => ["ID", "*"])
+      end
+    end
     
     describe "#select_all" do
       it "should prepare: SELECT * FROM birth_all" do

@@ -91,6 +91,8 @@ module Linkage
 
     def select(options = {})
       columns = options[:columns]
+      columns.collect! { |c| c == "*" ? "#{@table}.*" : c }
+
       columns = columns.nil? || columns.empty? ? columns = "*" : columns.join(", ")
       conditions = options[:conditions] ? " #{options[:conditions]}" : ""
       limit      = options[:limit] ? " LIMIT #{options[:limit]}" : ""
