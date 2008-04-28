@@ -97,6 +97,7 @@ module Linkage
       offset     = options[:offset] ? " OFFSET #{options[:offset]}" : ""
       
       qry = "SELECT #{columns} FROM #{@table}#{conditions}#{limit}#{offset}"
+      Linkage.logger.debug("Resource (#{name}): #{qry}")  if Linkage.logger
       result = case @configuration['adapter']
                when 'sqlite3' then connection.query(qry)
                when 'mysql'   then connection.prepare(qry).execute

@@ -17,4 +17,13 @@ require 'linkage/runner'
 require 'linkage/cache'
 
 module Linkage
+  @@logger = nil
+  
+  def self.logger
+    @@logger
+  end
+
+  def self.logger=(logger)
+    @@logger = logger
+  end
 end

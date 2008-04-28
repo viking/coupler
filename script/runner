@@ -3,4 +3,8 @@
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'linkage'
 
+logger = Logger.new(File.dirname(__FILE__) + "/../log/runner.log")
+logger.level = Logger::DEBUG
+Linkage.logger = logger 
+
 Linkage::Runner.run(ARGV[0])

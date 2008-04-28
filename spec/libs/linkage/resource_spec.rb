@@ -26,7 +26,9 @@ describe Linkage::Resource do
 
   before(:each) do
     @result = stub("result set", :next => [], :close => nil)
+    @logger = stub(Logger, :info => nil, :debug => nil, :add => nil)
     Linkage::Resource::ResultSet.stub!(:new).and_return(@result)
+    Linkage.stub!(:logger).and_return(@logger)
   end
 
   it "should have a name" do
@@ -93,6 +95,11 @@ describe Linkage::Resource do
       it "should create and return a Resource::ResultSet" do
         Linkage::Resource::ResultSet.should_receive(:new).with(@set, @resource.configuration['adapter']).and_return(@result)
         @resource.select_all.should == @result
+      end
+
+      it "should log its query" do
+        @logger.should_receive(:debug).with("Resource (#{@resource.name}): SELECT * FROM birth_all")
+        @resource.select_all
       end
     end
 

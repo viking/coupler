@@ -1,6 +1,11 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Scenario do
+  before(:each) do
+    @logger = stub(Logger, :debug => nil, :info => nil)
+    Linkage.stub!(:logger).and_return(@logger)
+  end
+
   describe 'when self-joining' do
     def create_scenario(options = {})
       options = {
@@ -177,6 +182,18 @@ describe Linkage::Scenario do
         @dob_matcher.stub!(:score).with("1980-09-04", "1982-04-15").and_return(0)
         @dob_matcher.stub!(:score).with("1982-04-15", "1982-04-15").and_return(100)
         @dob_matcher.stub!(:score).with("1980-09-04", "1980-09-04").and_return(100)
+      end
+
+      it "should log the start of the run" do
+        @logger.should_receive(:info).with("Scenario (family): Run start")
+        do_run
+      end
+
+      it "should log comparisons" do
+        @logger.should_receive(:debug).with("Scenario (family): Comparing record 1")
+        @logger.should_receive(:debug).with("Scenario (family): Comparing record 2")
+        @logger.should_receive(:debug).with("Scenario (family): Comparing record 3")
+        do_run
       end
 
       it "should create a cache with the scratch database" do

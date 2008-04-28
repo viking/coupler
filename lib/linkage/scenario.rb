@@ -64,6 +64,7 @@ module Linkage
     end
 
     def run
+      Linkage.logger.info("Scenario (#{name}): Run start")  if Linkage.logger
       retval = @scoring[:groups].inject({}) { |hsh, name| hsh[name] = []; hsh }
 
       case @type
@@ -101,6 +102,7 @@ module Linkage
 
         # first pass; transform records, put in scratch database, match record to first
         progress.next   if DEBUG
+        Linkage.logger.debug("Scenario (#{self.name}): Comparing record #{record_id}") if Linkage.logger
         while(true) do
           candidate = record_set.next
           if candidate.nil?
@@ -128,6 +130,7 @@ module Linkage
         # now match the rest of the records
         ids.each_with_index do |record_id, i|
           progress.next   if DEBUG
+          Linkage.logger.debug("Scenario (#{self.name}): Comparing record #{record_id}") if Linkage.logger
           record = cache.fetch(record_id)
           ids[i+1..-1].each do |candidate_id|
             candidate = cache.fetch(candidate_id)
