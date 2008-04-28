@@ -155,6 +155,7 @@ describe Linkage::Scenario do
         @record_3 = [3, "123456789", @date_1]
         @record_4 = [4, "123456789", @date_2]
 
+        # resource setup
         @all_result = stub("ResultSet (all)", :close => nil)
         @all_result.stub!(:next).and_return(
           [1, "123456789", @date_1],
@@ -167,10 +168,22 @@ describe Linkage::Scenario do
         @resource.stub!(:count).and_return(4)
 
         # cache setup
+        @cache.stub!(:fetch).with([3, 4]).and_return do
+          { 
+            3 => [3, "123456789", "1982-04-15"],
+            4 => [4, "123456789", "1980-09-04"]
+          }
+        end
+        @cache.stub!(:fetch).with([4]).and_return do
+          { 
+            4 => [4, "123456789", "1980-09-04"]
+          }
+        end
         @cache.stub!(:fetch).with(2).and_return { [2, nil, "1980-09-04"] }
         @cache.stub!(:fetch).with(3).and_return { [3, "123456789", "1982-04-15"] }
         @cache.stub!(:fetch).with(4).and_return { [4, "123456789", "1980-09-04"] }
 
+        # transformer setup
         @ssn_filter.stub!(:transform).with('ssn' => '123456789').and_return('123456789')
         @ssn_filter.stub!(:transform).with('ssn' => '999999999').and_return(nil)
         @date_changer.stub!(:transform).with('date' => @date_1).and_return(@date_1.to_s)
@@ -303,8 +316,18 @@ describe Linkage::Scenario do
 
       it "should fetch records from the cache for further comparisons" do
         @cache.should_receive(:fetch).with(2).and_return { [2, nil, "1980-09-04"] }
-        @cache.should_receive(:fetch).with(3).twice.and_return { [3, "123456789", "1982-04-15"] }
-        @cache.should_receive(:fetch).with(4).exactly(3).times.and_return { [4, "123456789", "1980-09-04"] }
+        @cache.should_receive(:fetch).with(3).and_return { [3, "123456789", "1982-04-15"] }
+        do_run
+      end
+
+      it "should fetch multiple records at a time from the cache" do
+        @cache.should_receive(:fetch).with([3, 4]).and_return({
+          3 => [3, "123456789", "1982-04-15"],
+          4 => [4, "123456789", "1980-09-04"]
+        })
+        @cache.should_receive(:fetch).with([4]).and_return({
+          4 => [4, "123456789", "1980-09-04"]
+        })
         do_run
       end
 

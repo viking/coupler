@@ -129,15 +129,22 @@ module Linkage
 
         # now match the rest of the records
         ids.each_with_index do |record_id, i|
+          break if i == (ids.length - 1)
+
           progress.next   if DEBUG
           Linkage.logger.debug("Scenario (#{self.name}): Comparing record #{record_id}") if Linkage.logger
           record = cache.fetch(record_id)
-          ids[i+1..-1].each do |candidate_id|
-            candidate = cache.fetch(candidate_id)
 
-            # match records
-            group, score = match(record, candidate)
-            retval[group] << [record_id, candidate_id, score] if group
+          # grab 1000 records at a time from the cache
+          count = ((ids.length - (i + 1)) / 1000) + 1
+          count.times do |j|
+            lower = i + 1 + (j*1000)
+            candidates = cache.fetch(ids[lower..(lower+1000)])
+            candidates.each_pair do |candidate_id, candidate|
+              # match records
+              group, score = match(record, candidate)
+              retval[group] << [record_id, candidate_id, score] if group
+            end
           end
         end
 

@@ -27,28 +27,43 @@ module Linkage
       record
     end
 
-    def fetch(key)
+    def fetch(*keys)
       @fetches += 1
-#      begin
+      keys.flatten!
+
+      # collect data, finding missing keys as we go along
+      records = {} 
+      missed  = []
+      keys.each do |key|
         id = @cache[key]
         case id
-        when :gone
-          record = recover(key)
         when nil
-          record = nil
+          records[key] = nil
+        when :gone
+          missed << key
         else
           begin
-            record = ObjectSpace._id2ref(id)
+            records[key] = ObjectSpace._id2ref(id)
           rescue RangeError
-            record = recover(key)
+            missed << key
           end
         end
-#      rescue Exception => boom
-#        debugger
-#        puts "error!"
-#      end
+      end
 
-      record
+      # recover keys
+      unless missed.empty?
+        @misses += missed.length
+
+        conditions = "WHERE #{@resource.primary_key} IN (#{missed.collect { |k| k.inspect }.join(", ")})"
+        set = @resource.select(:conditions => conditions, :columns => [@resource.primary_key, "*"])
+        while (record = set.next)
+          id = record.shift
+          records[id] = record
+          add(id, record)
+        end
+      end
+
+      keys.length == 1 ? records[keys.first] : records
     end
 
     def size
@@ -58,11 +73,5 @@ module Linkage
     def keys
       @cache.keys
     end
-
-    private
-      def recover(key)
-        @misses += 1
-        add(key, @resource.select_one(key))
-      end
   end
 end
