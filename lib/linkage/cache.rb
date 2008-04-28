@@ -29,6 +29,7 @@ module Linkage
 
     def fetch(*keys)
       @fetches += 1
+      return_hash = keys[0].is_a?(Array) || keys.length > 1
       keys.flatten!
 
       # collect data, finding missing keys as we go along
@@ -63,7 +64,7 @@ module Linkage
         end
       end
 
-      keys.length == 1 ? records[keys.first] : records
+      return_hash ? records : records[keys.first]
     end
 
     def size

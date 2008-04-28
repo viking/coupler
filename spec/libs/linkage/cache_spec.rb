@@ -61,6 +61,10 @@ describe Linkage::Cache do
         }
       end
 
+      it "should always return a hash when passed an array" do
+        @cache.fetch([1]).should == { 1 => "data 1" }
+      end
+
       describe "when fetching GC'd object(s)" do
         def fake_gc
           @cache.instance_eval do
