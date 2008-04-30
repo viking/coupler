@@ -17,26 +17,25 @@ module Linkage
 
     attr_reader :name, :type
     def initialize(options)
-      options = HashWithIndifferentAccess.new(options)
-      @name = options[:name]
-      @type = options[:type]
+      @name = options['name']
+      @type = options['type']
 
       case @type
       when 'self-join'
-        @resources = [Linkage::Resource.find(options[:resource])]
-        raise "can't find resource '#{options[:resource]}'"   unless @resources[0]
+        @resources = [Linkage::Resource.find(options['resource'])]
+        raise "can't find resource '#{options['resource']}'"   unless @resources[0]
       end
       @scratch = Linkage::Resource.find('scratch')
 
       matcher_fields = []
-      @matchers = options[:matchers].collect do |config|
+      @matchers = options['matchers'].collect do |config|
         matcher_fields << config['field']
         Matcher.new(config)
       end
 
       @transformations = []
       xform_fields     = []
-      options[:transformations].each do |info|
+      options['transformations'].each do |info|
         next  unless matcher_fields.include?(info['name'])
 
         xform_fields.push(*info['arguments'].values)
@@ -44,28 +43,28 @@ module Linkage
         raise "can't find transformer '#{info['transformer']}'"  unless t
         info['transformer'] = t
         @transformations << info
-      end if options[:transformations]
+      end if options['transformations']
 
       # scoring stuff
-      @scoring = options[:scoring]
-      @scoring[:groups] = @scoring[:cutlist].keys.sort
-      @scoring[:ranges] = @scoring[:groups].collect { |n| eval(@scoring[:cutlist][n]) }
+      @scoring = options['scoring']
+      @scoring['groups'] = @scoring['cutlist'].keys.sort
+      @scoring['ranges'] = @scoring['groups'].collect { |n| eval(@scoring['cutlist'][n]) }
       self.instance_eval(<<-EOF, __FILE__, __LINE__)
         def combine_scores(scores)
-          #{@scoring[:formula]}
+          #{@scoring['formula']}
         end
       EOF
       
       @all_fields = (matcher_fields + xform_fields).uniq
       @all_fields.unshift(@resources[0].primary_key)  if @type == 'self-join'
 
-      @conditions = options[:blocking]
-      @limit = options[:limit]  # undocumented and untested, wee!
+      @conditions = options['blocking']
+      @limit = options['limit']  # undocumented and untested, wee!
     end
 
     def run
       Linkage.logger.info("Scenario (#{name}): Run start")  if Linkage.logger
-      retval = @scoring[:groups].inject({}) { |hsh, name| hsh[name] = []; hsh }
+      retval = @scoring['groups'].inject({}) { |hsh, name| hsh[name] = []; hsh }
 
       case @type
       when 'self-join'
@@ -140,10 +139,10 @@ module Linkage
           count.times do |j|
             lower = i + 1 + (j*1000)
             candidates = cache.fetch(ids[lower..(lower+1000)])
-            candidates.each_pair do |candidate_id, candidate|
+            candidates.each do |candidate|
               # match records
               group, score = match(record, candidate)
-              retval[group] << [record_id, candidate_id, score] if group
+              retval[group] << [record_id, candidate[0], score] if group
             end
           end
         end
@@ -201,9 +200,9 @@ module Linkage
 
         # combine scores
         final_score = combine_scores(scores)
-        @scoring[:ranges].each_with_index do |range, i|
+        @scoring['ranges'].each_with_index do |range, i|
           next  unless range.include?(final_score)
-          return @scoring[:groups][i], final_score
+          return @scoring['groups'][i], final_score
         end
         nil
       end

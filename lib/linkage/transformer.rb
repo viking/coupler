@@ -4,10 +4,9 @@ module Linkage
       attr_reader :name, :coerce_to, :regexp
 
       def initialize(options)
-        options = HashWithIndifferentAccess.new(options)
-        @name      = options[:name]
-        @coerce_to = options[:coerce_to]
-        @regexp    = options[:regexp] ? Regexp.new(options[:regexp]) : nil
+        @name      = options['name']
+        @coerce_to = options['coerce_to']
+        @regexp    = options['regexp'] ? Regexp.new(options['regexp']) : nil
       end
 
       def valid?(value)
@@ -37,10 +36,9 @@ module Linkage
     attr_reader :name, :formula, :parameters, :default
 
     def initialize(options)
-      options = HashWithIndifferentAccess.new(options)
-      @name       = options[:name]
-      @formula    = options[:formula]
-      @default    = options[:default]
+      @name       = options['name']
+      @formula    = options['formula']
+      @default    = options['default']
       @parameters = []
 
       if @@transformers.keys.include?(@name)
@@ -51,11 +49,11 @@ module Linkage
 
       @formula_template = @formula.dup
       @default_template = @default ? @default.dup : "nil"
-      options[:parameters].each_with_index do |param, i|
+      options['parameters'].each_with_index do |param, i|
         @parameters << (last = Parameter.new(param.is_a?(Hash) ? param : {'name' => param.to_s}))
         @formula_template.gsub!(/\b#{last.name}\b/, "values[#{i}]")
         @default_template.gsub!(/\b#{last.name}\b/, "values[#{i}]")   if @default
-      end if options[:parameters].is_a?(Array)
+      end if options['parameters'].is_a?(Array)
 
       self.instance_eval(<<-EOF, __FILE__, __LINE__)
         def run_formula(values)

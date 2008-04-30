@@ -1,1 +1,2 @@
-- add scratch sqlite database to hold record data after transformation
+- convert the cache into C for speed
+- optimize matching

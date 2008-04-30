@@ -1,9 +1,8 @@
 require 'csv'
-require 'weakref'
+require 'logger'
 require 'progress'
 
 require 'rubygems'
-require 'active_support'
 require 'sqlite3'
 require 'mysql'
 require 'arrayfields'

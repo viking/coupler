@@ -3,9 +3,6 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 describe Linkage::Cache do
   before(:each) do
     @scratch = stub("scratch resource", :primary_key => "ID")
-    @weakref = "some awesome data"
-    @weakref.stub!(:weakref_alive?).and_return(true)
-    WeakRef.stub!(:new).and_return(@weakref)
     Linkage::Resource.stub!(:find).and_return(@scratch)
   end
 
@@ -19,15 +16,15 @@ describe Linkage::Cache do
       @cache = Linkage::Cache.new('scratch')
     end
 
-    describe "#keys" do
-      it "should return keys" do
-        @cache.add(1, "data 1")
-        @cache.add(2, "data 2")
-        @cache.add(3, "data 3")
-        @cache.keys.sort.should == [1,2,3]
-      end
-    end
-
+#    describe "#keys" do
+#      it "should return keys" do
+#        @cache.add(1, "data 1")
+#        @cache.add(2, "data 2")
+#        @cache.add(3, "data 3")
+#        @cache.keys.sort.should == [1,2,3]
+#      end
+#    end
+#
     describe "#add" do
       it "should add data to the cache" do
         @cache.add(1, "data 1")
@@ -37,46 +34,39 @@ describe Linkage::Cache do
     describe "#fetch" do
       before(:each) do
         (1..10).each do |i|
-          @cache.add(i, "data #{i}")
+          @cache.add(i, [i, "data #{i}"])
         end
       end
 
       it "should fetch data that was just added" do
-        @cache.fetch(1).should == "data 1" 
+        @cache.fetch(1).should == [1, "data 1"]
       end
 
       it "should fetch more than one item" do
-        @cache.fetch(1, 2, 3).should == {
-          1 => "data 1",
-          2 => "data 2",
-          3 => "data 3"
-        }
+        @cache.fetch(1, 2, 3).should == [
+          [1, "data 1"],
+          [2, "data 2"],
+          [3, "data 3"]
+        ]
       end
 
       it "should accept an array of keys" do
-        @cache.fetch([1,2,3]).should == {
-          1 => "data 1",
-          2 => "data 2",
-          3 => "data 3"
-        }
+        @cache.fetch([1,2,3]).should == [
+          [1, "data 1"],
+          [2, "data 2"],
+          [3, "data 3"]
+        ]
       end
 
-      it "should always return a hash when passed an array" do
-        @cache.fetch([1]).should == { 1 => "data 1" }
+      it "should always return a 2d array when passed an array" do
+        @cache.fetch([1]).should == [[1, "data 1"]]
       end
 
       describe "when fetching GC'd object(s)" do
-        def fake_gc
-          @cache.instance_eval do
-            @cache.keys.each { |k| @cache[k] = :gone }
-            @rev_cache.clear
-          end
-        end
-
         before(:each) do
-          fake_gc
+          GC.start
           @set = stub("result set")
-          @set.stub!(:next).and_return([1, "some awesome data"], nil)
+          @set.stub!(:next).and_return([1, "data 1"], nil)
           @scratch.stub!(:select).with({
             :conditions => "WHERE ID IN (1)",
             :columns => ["ID", "*"]

@@ -33,18 +33,17 @@ module Linkage
     attr_reader :name, :configuration, :table, :primary_key
 
     def initialize(options = {})
-      options = HashWithIndifferentAccess.new(options)
-      @name   = options[:name]
+      @name = options['name']
       if @@resources.keys.include?(@name)
         raise "duplicate name"
       else
         @@resources[@name] = self
       end
-      @configuration = options[:connection]
+      @configuration = options['connection']
 
-      if options[:table]
-        @table = options[:table][:name]
-        @primary_key = options[:table][:primary_key]
+      if options['table']
+        @table = options['table']['name']
+        @primary_key = options['table']['primary_key']
       end
     end
 
@@ -100,10 +99,15 @@ module Linkage
       
       qry = "SELECT #{columns} FROM #{@table}#{conditions}#{limit}#{offset}"
       Linkage.logger.debug("Resource (#{name}): #{qry}")  if Linkage.logger
-      result = case @configuration['adapter']
-               when 'sqlite3' then connection.query(qry)
-               when 'mysql'   then connection.prepare(qry).execute
-               end
+      begin
+        result = case @configuration['adapter']
+                 when 'sqlite3' then connection.query(qry)
+                 when 'mysql'   then connection.prepare(qry).execute
+                 end
+      rescue Exception => boom
+        debugger
+        p boom
+      end
       ResultSet.new(result, @configuration['adapter'])
     end
 

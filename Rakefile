@@ -1,10 +1,11 @@
+require 'fileutils'
 require 'rubygems'
 require 'rake'
 require 'spec'
 require 'spec/rake/spectask'
 
-task :spec
 desc "Run all specs"
+task :spec => :build
 Spec::Rake::SpecTask.new do |t|
   t.spec_files = FileList['spec/**/*_spec.rb']
   t.spec_opts = ['--options', 'spec/spec.opts']
@@ -13,6 +14,14 @@ end
 desc "Run all stories"
 task :stories => "db:test:prepare" do
   load("stories/all.rb")
+end
+
+desc "Build project"
+task :build do
+  srcdir  = File.dirname(__FILE__) + "/ext"
+  destdir = File.dirname(__FILE__) + "/lib/linkage"
+  `make -C #{srcdir}`
+  FileUtils.copy("#{srcdir}/cache.so", destdir)
 end
 
 namespace :db do

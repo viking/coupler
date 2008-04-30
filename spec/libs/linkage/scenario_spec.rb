@@ -169,15 +169,15 @@ describe Linkage::Scenario do
 
         # cache setup
         @cache.stub!(:fetch).with([3, 4]).and_return do
-          { 
-            3 => [3, "123456789", "1982-04-15"],
-            4 => [4, "123456789", "1980-09-04"]
-          }
+          [ 
+            [3, "123456789", "1982-04-15"],
+            [4, "123456789", "1980-09-04"]
+          ]
         end
         @cache.stub!(:fetch).with([4]).and_return do
-          { 
-            4 => [4, "123456789", "1980-09-04"]
-          }
+          [ 
+            [4, "123456789", "1980-09-04"]
+          ]
         end
         @cache.stub!(:fetch).with(2).and_return { [2, nil, "1980-09-04"] }
         @cache.stub!(:fetch).with(3).and_return { [3, "123456789", "1982-04-15"] }
@@ -321,13 +321,13 @@ describe Linkage::Scenario do
       end
 
       it "should fetch multiple records at a time from the cache" do
-        @cache.should_receive(:fetch).with([3, 4]).and_return({
-          3 => [3, "123456789", "1982-04-15"],
-          4 => [4, "123456789", "1980-09-04"]
-        })
-        @cache.should_receive(:fetch).with([4]).and_return({
-          4 => [4, "123456789", "1980-09-04"]
-        })
+        @cache.should_receive(:fetch).with([3, 4]).and_return([
+          [3, "123456789", "1982-04-15"],
+          [4, "123456789", "1980-09-04"]
+        ])
+        @cache.should_receive(:fetch).with([4]).and_return([
+          [4, "123456789", "1980-09-04"]
+        ])
         do_run
       end
 
