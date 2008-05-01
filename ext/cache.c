@@ -149,12 +149,12 @@ cache_fetch(self, args)
   if (bad_count > 0) {
     /* construct select arguments hash */
     select_args = rb_hash_new();
-    rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new2("*")));
+    rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new("*", 1)));
 
     /* make query string: "WHERE ID IN (1, 2, 3, ...)" */
-    key_str = rb_ary_join(inspect_ary, rb_str_new2(", ")); 
-    str_len = 13 + RSTRING_LEN(c->primary_key) + RSTRING_LEN(key_str);
-    c_qry   = ALLOC_N(char, str_len);
+    key_str = rb_ary_join(inspect_ary, rb_str_new(", ", 2)); 
+    str_len = 12 + RSTRING_LEN(c->primary_key) + RSTRING_LEN(key_str);
+    c_qry   = ALLOC_N(char, str_len+1);
     sprintf(c_qry, "WHERE %s IN (%s)", RSTRING_PTR(c->primary_key), RSTRING_PTR(key_str));
     rb_hash_aset(select_args, sym_conditions, rb_str_new(c_qry, str_len));
     free(c_qry);
