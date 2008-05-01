@@ -1,5 +1,6 @@
 #include "ruby.h"
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
+#define GetRecord(obj, ptr) Data_Get_Struct(obj, CacheRecord, ptr);
 
 static ID    id_find, id_primary_key, id_select, id_next;
 static VALUE sym_columns, sym_conditions;
@@ -7,6 +8,7 @@ static VALUE sym_columns, sym_conditions;
 VALUE rb_mLinkage;
 VALUE rb_mLinkage_cResource;
 VALUE rb_mLinkage_cCache;
+VALUE rb_mLinkage_cCache_cRecord;
 
 typedef struct LinkageCache_s {
   VALUE cache;
@@ -15,6 +17,12 @@ typedef struct LinkageCache_s {
   long  fetches;
   long  misses;
 } LinkageCache;
+
+typedef struct CacheRecord_s {
+  VALUE key;
+  VALUE value;
+  VALUE cache;
+} CacheRecord;
 
 void
 cache_mark(c)
@@ -30,6 +38,16 @@ cache_free(c)
   LinkageCache *c;
 {
   free(c);
+}
+
+void
+record_free(r)
+  CacheRecord *r;
+{
+  /* tell the cache that I've been garbage collected */
+//  printf("%d got garbage collected!\n", FIX2INT(r->key));
+  rb_hash_aset(r->cache, r->key, Qnil); 
+  free(r);
 }
 
 static VALUE
@@ -65,18 +83,45 @@ cache_init(self, resource_name)
 }
 
 static VALUE
+record_init(self)
+  VALUE self;
+{
+  rb_raise(rb_eRuntimeError, "I'm only meant for internal use!");
+  return Qnil;
+}
+
+static void
+do_add(c, key, value)
+  LinkageCache *c;
+  VALUE key;
+  VALUE value;
+{
+  VALUE obj, object_id; 
+  CacheRecord *r;
+
+  /* Make a Linkage::Cache::Record object to store. The reason for this
+   * is so that the Record can modify the cache when it gets garbage
+   * collected. */
+
+  r = ALLOC(CacheRecord);
+  r->cache = c->cache;
+  r->value = value;
+  r->key   = key;
+  obj = Data_Wrap_Struct(rb_mLinkage_cCache_cRecord, 0, record_free, r);
+
+  object_id = rb_obj_id(obj);
+  rb_hash_aset(c->cache, key, object_id);
+}
+
+static VALUE
 cache_add(self, key, value)
   VALUE self;
   VALUE key;
   VALUE value;
 {
   LinkageCache *c;
-  VALUE object_id; 
-
   GetCache(self, c);
-  object_id = rb_obj_id(value);
-  rb_hash_aset(c->cache, key, object_id);
-
+  do_add(c, key, value);
   return value;
 }
 
@@ -95,20 +140,22 @@ cache_fetch(self, args)
   VALUE self;
   VALUE args;
 {
-  VALUE object_id, retval, key, record, select_args, qry, key_str, res, bad_keys, inspect_ary, tmp;
-  unsigned long ptr, i, bad_count;
+  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr;
+  unsigned long i, bad_count;
   int str_len;
   char *c_qry;
   LinkageCache *c;
+  CacheRecord *r;
+
   GetCache(self, c);
   c->fetches++;
 
   /* determine how to return result */
   retval = Qnil;
   if (RARRAY(args)->len == 1) {
-    key = rb_ary_entry(args, 0);
-    if (TYPE(key) == T_ARRAY) {
-      args = key; 
+    tmp = rb_ary_entry(args, 0);
+    if (TYPE(tmp) == T_ARRAY) {
+      args = tmp; 
       retval = rb_ary_new2(RARRAY(args)->len);
     }
   }
@@ -121,6 +168,7 @@ cache_fetch(self, args)
   for (i = 0; i < RARRAY(args)->len; i++) {
     key = rb_ary_entry(args, i);
     if (!st_lookup(RHASH(c->cache)->tbl, key, &object_id)) {
+      /* This means that there was no entry for 'key' to begin with */
       if (retval == Qnil)
         return Qnil;
 
@@ -128,20 +176,20 @@ cache_fetch(self, args)
       continue;
     }
 
-    /* convert object id to a pointer; see id2ref in gc.c */
-    ptr = object_id ^ FIXNUM_FLAG;
-    if (BUILTIN_TYPE(ptr) == 0 || RBASIC(ptr)->klass == 0) {
-      /* this object's been garbage collected! grab result from database */
-//      printf("key %d has been garbage collected!\n", FIX2INT(key));
+    /* If object_id is nil at this point, it means the object was GC'd */
+    if (NIL_P(object_id)) {
       c->misses++;
       bad_count++;
       rb_ary_push(inspect_ary, rb_inspect(key));
     }
     else {
-      if (retval == Qnil)
-        return (VALUE)ptr;
+      /* convert object id to a pointer; see id2ref in gc.c */
+      ptr = (VALUE)(object_id ^ FIXNUM_FLAG);
+      GetRecord(ptr, r)
 
-      rb_ary_push(retval, (VALUE)ptr); 
+      if (retval == Qnil)
+        return r->value;
+      rb_ary_push(retval, r->value); 
     }
   }
 
@@ -163,18 +211,14 @@ cache_fetch(self, args)
     res = rb_funcall(c->resource, id_select, 1, select_args);
     
     /* re-insert objects into cache */ 
-    i = 0;
     while ( RTEST(tmp = rb_funcall(res, id_next, 0)) ) {
       /* key is first element in tmp */
       key = rb_ary_shift(tmp);
-
-      object_id = rb_obj_id(tmp);
-      rb_hash_aset(c->cache, key, object_id);
+      do_add(c, key, tmp);
 
       /* return accordingly */
       if (retval == Qnil)
         return tmp;
-
       rb_ary_push(retval, tmp); 
     }
   }
@@ -213,6 +257,7 @@ Init_cache()
   rb_mLinkage = rb_const_get(rb_cObject, rb_intern("Linkage"));
   rb_mLinkage_cResource = rb_const_get(rb_mLinkage, rb_intern("Resource"));
   rb_mLinkage_cCache = rb_define_class_under(rb_mLinkage, "Cache", rb_cObject);
+  rb_mLinkage_cCache_cRecord = rb_define_class_under(rb_mLinkage_cCache, "Record", rb_cObject);
   
   rb_define_alloc_func(rb_mLinkage_cCache, cache_alloc);
   rb_define_method(rb_mLinkage_cCache, "initialize", cache_init, 1);
@@ -220,4 +265,7 @@ Init_cache()
   rb_define_method(rb_mLinkage_cCache, "fetch", cache_fetch, -2);
   rb_define_method(rb_mLinkage_cCache, "fetches", cache_fetches, 0);
   rb_define_method(rb_mLinkage_cCache, "misses", cache_misses, 0);
+
+  rb_mLinkage_cCache_cRecord = rb_define_class_under(rb_mLinkage_cCache, "Record", rb_cObject);
+  rb_define_method(rb_mLinkage_cCache_cRecord, "initialize", record_init, 0);
 }
