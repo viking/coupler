@@ -1,7 +1,6 @@
 steps_for(:family) do
   When("I run the $name specification") do |name|
     path = File.join(File.dirname(__FILE__), "files")
-    debugger
     Linkage::Runner.run(File.join(path, "#{name}.yml"))
   end
 

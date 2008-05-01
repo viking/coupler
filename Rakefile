@@ -12,7 +12,7 @@ Spec::Rake::SpecTask.new do |t|
 end
 
 desc "Run all stories"
-task :stories => "db:test:prepare" do
+task :stories => [:build, "db:test:prepare"] do
   load("stories/all.rb")
 end
 

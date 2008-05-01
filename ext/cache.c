@@ -80,6 +80,16 @@ cache_add(self, key, value)
   return value;
 }
 
+/*
+ *  call-seq:
+ *     cache.fetch(id1, id2, ...)  -> array
+ *  
+ *  Fetch value(s) from the cache.  First element can also be an array
+ *  of keys to fetch.
+ *
+ *  NOTE: values are not guaranteed to be the same order that you requested!
+ */
+
 static VALUE
 cache_fetch(self, args)
   VALUE self;
@@ -106,7 +116,6 @@ cache_fetch(self, args)
     retval = rb_ary_new2(RARRAY(args)->len);
 
   /* iterate through array of keys; collecting bad keys for recovery */
-  bad_keys    = rb_ary_new();
   inspect_ary = rb_ary_new();
   bad_count   = 0;
   for (i = 0; i < RARRAY(args)->len; i++) {
@@ -123,9 +132,10 @@ cache_fetch(self, args)
     ptr = object_id ^ FIXNUM_FLAG;
     if (BUILTIN_TYPE(ptr) == 0 || RBASIC(ptr)->klass == 0) {
       /* this object's been garbage collected! grab result from database */
+//      printf("key %d has been garbage collected!\n", FIX2INT(key));
       c->misses++;
-      rb_ary_store(bad_keys, bad_count, key);
-      rb_ary_store(inspect_ary, bad_count++, rb_inspect(key));
+      bad_count++;
+      rb_ary_push(inspect_ary, rb_inspect(key));
     }
     else {
       if (retval == Qnil)
@@ -143,7 +153,7 @@ cache_fetch(self, args)
 
     /* make query string: "WHERE ID IN (1, 2, 3, ...)" */
     key_str = rb_ary_join(inspect_ary, rb_str_new2(", ")); 
-    str_len = 12 + RSTRING_LEN(c->primary_key) + RSTRING_LEN(key_str);
+    str_len = 13 + RSTRING_LEN(c->primary_key) + RSTRING_LEN(key_str);
     c_qry   = ALLOC_N(char, str_len);
     sprintf(c_qry, "WHERE %s IN (%s)", RSTRING_PTR(c->primary_key), RSTRING_PTR(key_str));
     rb_hash_aset(select_args, sym_conditions, rb_str_new(c_qry, str_len));
@@ -156,15 +166,16 @@ cache_fetch(self, args)
     i = 0;
     while ( RTEST(tmp = rb_funcall(res, id_next, 0)) ) {
       /* key is first element in tmp */
-      key = rb_ary_entry(tmp, 0);
+      key = rb_ary_shift(tmp);
+
       object_id = rb_obj_id(tmp);
       rb_hash_aset(c->cache, key, object_id);
 
       /* return accordingly */
       if (retval == Qnil)
-        return (VALUE)ptr;
+        return tmp;
 
-      rb_ary_push(retval, (VALUE)ptr); 
+      rb_ary_push(retval, tmp); 
     }
   }
 
