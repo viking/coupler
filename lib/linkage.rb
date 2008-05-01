@@ -1,5 +1,6 @@
 require 'csv'
 require 'logger'
+require 'yaml'
 require 'progress'
 
 require 'rubygems'
