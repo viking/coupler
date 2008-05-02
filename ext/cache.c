@@ -2,7 +2,7 @@
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
 #define GetRecord(obj, ptr) Data_Get_Struct(obj, CacheRecord, ptr);
 
-static ID    id_find, id_primary_key, id_select, id_next;
+static ID    id_find, id_primary_key, id_select, id_next, id_close;
 static VALUE sym_columns, sym_conditions;
 
 VALUE rb_mLinkage;
@@ -140,18 +140,18 @@ cache_fetch(self, args)
   VALUE self;
   VALUE args;
 {
-  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr, gc;
+  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr, gc_was_off;
   unsigned long i, bad_count;
   int str_len;
   char *c_qry;
   LinkageCache *c;
   CacheRecord *r;
 
-  /* this may or may not be a bad idea.  it's most likely possible to rewrite
+  /* this may or may not be a bad idea.  it might be possible to rewrite
    * this function so that there's no new memory being allocated during the
    * fetching process.  i don't know that there's a huge advantage to doing
    * that, however. */
-  gc = rb_gc_disable();
+  gc_was_off = rb_gc_disable();
 
   GetCache(self, c);
   c->fetches++;
@@ -171,12 +171,13 @@ cache_fetch(self, args)
   /* iterate through array of keys; collecting bad keys for recovery */
   inspect_ary = rb_ary_new();
   bad_count   = 0;
+  res = Qnil;
   for (i = 0; i < RARRAY(args)->len; i++) {
     key = rb_ary_entry(args, i);
     if (!st_lookup(RHASH(c->cache)->tbl, key, &object_id)) {
       /* This means that there was no entry for 'key' to begin with */
       if (retval == Qnil)
-        return Qnil;
+        goto all_done;
 
       rb_ary_push(retval, Qnil); 
       continue;
@@ -193,8 +194,10 @@ cache_fetch(self, args)
       ptr = (VALUE)(object_id ^ FIXNUM_FLAG);
       GetRecord(ptr, r)
 
-      if (retval == Qnil)
-        return r->value;
+      if (retval == Qnil) {
+        retval = r->value;
+        goto all_done;
+      }
       rb_ary_push(retval, r->value); 
     }
   }
@@ -223,16 +226,23 @@ cache_fetch(self, args)
       do_add(c, key, tmp);
 
       /* return accordingly */
-      if (retval == Qnil)
-        return tmp;
+      if (retval == Qnil) {
+        retval = tmp;
+        goto all_done;
+      }
       rb_ary_push(retval, tmp); 
     }
+    rb_funcall(res, id_close, 0);
   }
 
-  if (!RTEST(gc))
-    rb_gc_disable();
+  all_done:
+    if (!RTEST(gc_was_off))
+      rb_gc_enable();
 
-  return retval;
+    if (!NIL_P(res))
+      rb_funcall(res, id_close, 0);
+
+    return retval;
 }
 
 static VALUE
@@ -260,6 +270,7 @@ Init_cache()
   id_primary_key = rb_intern("primary_key");
   id_select      = rb_intern("select");
   id_next        = rb_intern("next");
+  id_close       = rb_intern("close");
   sym_columns    = ID2SYM(rb_intern("columns"));
   sym_conditions = ID2SYM(rb_intern("conditions"));
 

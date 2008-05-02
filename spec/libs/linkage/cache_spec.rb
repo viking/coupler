@@ -2,7 +2,8 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Cache do
   before(:each) do
-    @scratch = stub("scratch resource", :primary_key => "ID")
+    @set = stub("result set", :close => nil)
+    @scratch = stub("scratch resource", :primary_key => "ID", :select => @set)
     Linkage::Resource.stub!(:find).and_return(@scratch)
   end
 
@@ -65,7 +66,6 @@ describe Linkage::Cache do
       describe "when fetching GC'd object(s)" do
         before(:each) do
           GC.start
-          @set = stub("result set")
           @set.stub!(:next).and_return([1, "data 1"], nil)
           @scratch.stub!(:select).with({
             :conditions => "WHERE ID IN (1)",
@@ -88,7 +88,7 @@ describe Linkage::Cache do
         end
 
         it "should find multiple records in the database" do
-          set = stub("result set")
+          set = stub("result set", :close => nil)
           set.stub!(:next).and_return(["data 1"], ["data 2"], ["data 3"], nil)
           @scratch.should_receive(:select).with({
             :conditions => "WHERE ID IN (1, 2, 3)",
@@ -96,6 +96,11 @@ describe Linkage::Cache do
           }).and_return(set)
 
           @cache.fetch(1, 2, 3)
+        end
+
+        it "should close the result set" do
+          @set.should_receive(:close)
+          @cache.fetch(1)
         end
       end
     end

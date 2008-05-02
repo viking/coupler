@@ -363,7 +363,7 @@ end
 describe Linkage::Resource::ResultSet do
   describe "when initialized with a mysql result set" do
     before(:each) do
-      @mysql = stub(Mysql::Result)
+      @mysql = stub(Mysql::Result, :close => nil)
       @result_set = Linkage::Resource::ResultSet.new(@mysql, 'mysql')
     end
 
@@ -387,12 +387,18 @@ describe Linkage::Resource::ResultSet do
         @mysql.should_receive(:close)
         @result_set.close
       end
+
+      it "should not close again" do
+        @result_set.close
+        @mysql.should_not_receive(:close)
+        @result_set.close
+      end
     end
   end
 
   describe "when initialized with a sqlite3 result set" do
     before(:each) do
-      @sqlite3 = stub(SQLite3::ResultSet, :each => nil, :next => {})
+      @sqlite3 = stub(SQLite3::ResultSet, :each => nil, :next => {}, :close => nil)
       @result_set = Linkage::Resource::ResultSet.new(@sqlite3, 'sqlite3')
     end
 
@@ -414,6 +420,12 @@ describe Linkage::Resource::ResultSet do
     describe "#close" do
       it "should call close" do
         @sqlite3.should_receive(:close)
+        @result_set.close
+      end
+
+      it "should not close again" do
+        @result_set.close
+        @sqlite3.should_not_receive(:close)
         @result_set.close
       end
     end

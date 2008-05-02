@@ -4,6 +4,7 @@ module Linkage
       def initialize(set, type)
         @set = set
         @type = type
+        @closed = false
       end
 
       def each(&block)
@@ -20,7 +21,10 @@ module Linkage
       end
 
       def close
-        @set.close
+        unless @closed
+          @set.close
+          @closed = true
+        end
       end
     end
 
