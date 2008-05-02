@@ -45,7 +45,7 @@ record_free(r)
   CacheRecord *r;
 {
   /* tell the cache that I've been garbage collected */
-  printf("%d got garbage collected!\n", FIX2INT(r->key));
+//  printf("%d got garbage collected!\n", FIX2INT(r->key));
   rb_hash_aset(r->cache, r->key, Qnil); 
   free(r);
 }
