@@ -45,7 +45,7 @@ record_free(r)
   CacheRecord *r;
 {
   /* tell the cache that I've been garbage collected */
-//  printf("%d got garbage collected!\n", FIX2INT(r->key));
+  printf("%d got garbage collected!\n", FIX2INT(r->key));
   rb_hash_aset(r->cache, r->key, Qnil); 
   free(r);
 }
@@ -140,12 +140,18 @@ cache_fetch(self, args)
   VALUE self;
   VALUE args;
 {
-  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr;
+  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr, gc;
   unsigned long i, bad_count;
   int str_len;
   char *c_qry;
   LinkageCache *c;
   CacheRecord *r;
+
+  /* this may or may not be a bad idea.  it's most likely possible to rewrite
+   * this function so that there's no new memory being allocated during the
+   * fetching process.  i don't know that there's a huge advantage to doing
+   * that, however. */
+  gc = rb_gc_disable();
 
   GetCache(self, c);
   c->fetches++;
@@ -222,6 +228,9 @@ cache_fetch(self, args)
       rb_ary_push(retval, tmp); 
     }
   }
+
+  if (!RTEST(gc))
+    rb_gc_disable();
 
   return retval;
 }
