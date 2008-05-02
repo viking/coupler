@@ -26,6 +26,7 @@ module Linkage
     end
 
     def run_scenarios
+      disabled = GC.disable  if ENV['GC_OFF']
       @scenarios.each do |scenario|
         result  = scenario.run
         outfile = File.open("#{scenario.name}.csv", "w")
@@ -39,6 +40,7 @@ module Linkage
         csv.close
         outfile.close
       end
+      GC.enable   unless disabled
     end
   end
 end
