@@ -19,7 +19,7 @@ describe Linkage::Cache do
   describe "when guaranteeing 10 records" do
     before(:each) do
       @cache = Linkage::Cache.new('scratch', 10)
-      (1..10).each do |i|
+      (1..11).each do |i|
         @cache.add(i, [i, "data #{i}"])
       end
     end
@@ -31,10 +31,9 @@ describe Linkage::Cache do
     end
 
     it "should have a window of marked records" do
-      @cache.add(11, [11, "data 11"])
       GC.start
       @scratch.should_receive(:select).and_return(@set)
-      @cache.fetch(1)
+      @cache.fetch(11)
     end
   end
   

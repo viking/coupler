@@ -218,7 +218,8 @@ do_add(c, key, value)
 
   /* handle guaranteeing */
   c->live++;
-  if (c->guaranteed > 0) {
+//  if (c->guaranteed > 0) {
+  if (c->guaranteed > 0 && c->live <= c->guaranteed) {
     guar *g = ALLOC(guar);
     g->object = value;
     g->next   = NULL;
@@ -230,12 +231,12 @@ do_add(c, key, value)
       c->ghead = c->gtail = g;
     }
 
-    if (c->live > c->guaranteed) {
-      /* take off front */
-      gtmp     = (guar *)c->ghead;
-      c->ghead = (guar *)c->ghead->next;
-      free(gtmp);
-    }
+//    if (c->live > c->guaranteed) {
+//      /* take off front */
+//      gtmp     = (guar *)c->ghead;
+//      c->ghead = (guar *)c->ghead->next;
+//      free(gtmp);
+//    }
   }
 }
 
