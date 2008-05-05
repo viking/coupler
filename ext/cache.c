@@ -1,53 +1,76 @@
 #include "ruby.h"
+#include "st.h"
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
-#define GetRecord(obj, ptr) Data_Get_Struct(obj, CacheRecord, ptr);
 
-static ID    id_find, id_primary_key, id_select, id_next, id_close;
+static ID    id_find, id_primary_key, id_select, id_next, id_close, id_reclaim,
+             id_method, id_to_proc, id_define_finalizer;
 static VALUE sym_columns, sym_conditions;
 
 VALUE rb_mLinkage;
 VALUE rb_mLinkage_cResource;
 VALUE rb_mLinkage_cCache;
-VALUE rb_mLinkage_cCache_cRecord;
+VALUE rb_mObSpace;
+
+/* copied from st.c; I have no idea why it's not in st.h */
+typedef struct st_table_entry st_table_entry;
+
+struct st_table_entry {
+  unsigned int hash;
+  st_data_t key;
+  st_data_t record;
+  st_table_entry *next;
+};
 
 typedef struct LinkageCache_s {
-  VALUE cache;
+  struct st_table *cache;
+  struct st_table *rev_cache;
   VALUE resource;
   VALUE primary_key;
+  VALUE reclaim_proc;
+  long  live;
   long  fetches;
   long  misses;
 } LinkageCache;
 
-typedef struct CacheRecord_s {
-  VALUE key;
-  VALUE value;
-  VALUE cache;
-} CacheRecord;
+typedef struct CacheEntry_s {
+  VALUE data;
+  int free;
+} CacheEntry;
 
 void
 cache_mark(c)
   LinkageCache *c;
 {
-  rb_gc_mark(c->cache);
+  int i;
+  CacheEntry *e;
+
   rb_gc_mark(c->resource);
   rb_gc_mark(c->primary_key);
+  rb_gc_mark(c->reclaim_proc);
+
+  /* TODO: mark values sometimes depending on number of objects */
 }
 
 void
 cache_free(c)
   LinkageCache *c;
 {
-  free(c);
-}
+  st_table_entry *tbl_entry;
+  int i;
 
-void
-record_free(r)
-  CacheRecord *r;
-{
-  /* tell the cache that I've been garbage collected */
-//  printf("%d got garbage collected!\n", FIX2INT(r->key));
-  rb_hash_aset(r->cache, r->key, Qnil); 
-  free(r);
+  /* free up cache entries */
+  if (c->cache->num_entries > 0) {
+    for (i = 0; i < c->cache->num_bins; i++) {
+      tbl_entry = c->cache->bins[i];
+      while (tbl_entry) {
+        free((CacheEntry *)tbl_entry->record);
+        tbl_entry = tbl_entry->next;
+      }
+    }
+  }
+  st_free_table(c->cache);
+  st_free_table(c->rev_cache);
+  free(c);
 }
 
 static VALUE
@@ -55,10 +78,14 @@ cache_alloc(klass)
   VALUE klass;
 {
   LinkageCache *c = ALLOC(LinkageCache);
-  c->cache        = Qnil;
   c->resource     = Qnil;
+  c->primary_key  = Qnil;
+  c->reclaim_proc = Qnil;
   c->fetches      = 0;
   c->misses       = 0;
+  c->live         = 0;
+  c->cache        = st_init_numtable();
+  c->rev_cache    = st_init_numtable();
   return Data_Wrap_Struct(klass, cache_mark, cache_free, c);
 }
 
@@ -68,25 +95,42 @@ cache_init(self, resource_name)
   VALUE resource_name;
 {
   LinkageCache *c;
-  VALUE resource;
+  VALUE resource, method;
 
   /* find resource */
   resource = rb_funcall(rb_mLinkage_cResource, id_find, 1, resource_name);
 
   /* initialize data */
   GetCache(self, c);
-  c->cache       = rb_hash_new();
   c->resource    = resource;
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
+
+  /* make the reclaim proc.  this is kinda ghetto */
+  method = rb_funcall(self, id_method, 1, ID2SYM(id_reclaim));
+  c->reclaim_proc = rb_funcall(method, id_to_proc, 0);
 
   return self;
 }
 
 static VALUE
-record_init(self)
+cache_reclaim(self, object_id)
   VALUE self;
+  VALUE object_id;
 {
-  rb_raise(rb_eRuntimeError, "I'm only meant for internal use!");
+  VALUE key;
+  LinkageCache *c;
+  CacheEntry   *e;
+  GetCache(self, c);
+
+  /* this shouldn't ever be false, but can't hurt anything to check */
+  if (st_delete(c->rev_cache, (st_data_t *)&object_id, (st_data_t *)&key)) {
+    /* get entry from real cache */
+    if (st_lookup(c->cache, (st_data_t)key, (st_data_t *)&e)) {
+      e->free = 1;
+      c->live--;
+    }
+  }
+
   return Qnil;
 }
 
@@ -96,21 +140,30 @@ do_add(c, key, value)
   VALUE key;
   VALUE value;
 {
-  VALUE obj, object_id; 
-  CacheRecord *r;
+  VALUE objid;
+  long entry_l;
+  int  dont_insert;
+  CacheEntry *e;
 
-  /* Make a Linkage::Cache::Record object to store. The reason for this
-   * is so that the Record can modify the cache when it gets garbage
-   * collected. */
+  /* see if there's an entry already */
+  if (dont_insert = st_lookup(c->cache, (st_data_t)key, (st_data_t *)&entry_l)) {
+    e = (CacheEntry *)entry_l;
+  } else {
+    e = ALLOC(CacheEntry);
+  }
+  e->free = 0;
+  e->data = value;
+  objid   = rb_obj_id(value);
 
-  r = ALLOC(CacheRecord);
-  r->cache = c->cache;
-  r->value = value;
-  r->key   = key;
-  obj = Data_Wrap_Struct(rb_mLinkage_cCache_cRecord, 0, record_free, r);
+  /* add reclaim finalizer */
+  rb_funcall(rb_mObSpace, id_define_finalizer, 2, value, c->reclaim_proc);
 
-  object_id = rb_obj_id(obj);
-  rb_hash_aset(c->cache, key, object_id);
+  /* insert entry into cache */
+  st_insert(c->rev_cache, (st_data_t)objid, (st_data_t)key);  /* one key per id in this case */
+  if (!dont_insert)
+    st_insert(c->cache, (st_data_t)key, (st_data_t)e);
+
+  c->live++;
 }
 
 static VALUE
@@ -140,12 +193,12 @@ cache_fetch(self, args)
   VALUE self;
   VALUE args;
 {
-  VALUE object_id, retval, key, select_args, qry, key_str, res, inspect_ary, tmp, ptr, gc_was_off;
-  unsigned long i, bad_count;
+  VALUE retval, key, qry, res, select_args, key_str, inspect_ary, tmp, gc_was_off, ptr;
+  unsigned long i, entry_l;
   int str_len;
   char *c_qry;
   LinkageCache *c;
-  CacheRecord *r;
+  CacheEntry   *e;
 
   /* this may or may not be a bad idea.  it might be possible to rewrite
    * this function so that there's no new memory being allocated during the
@@ -170,11 +223,10 @@ cache_fetch(self, args)
 
   /* iterate through array of keys; collecting bad keys for recovery */
   inspect_ary = rb_ary_new();
-  bad_count   = 0;
   res = Qnil;
   for (i = 0; i < RARRAY(args)->len; i++) {
     key = rb_ary_entry(args, i);
-    if (!st_lookup(RHASH(c->cache)->tbl, key, &object_id)) {
+    if (!st_lookup(c->cache, (st_data_t)key, (st_data_t *)&entry_l)) {
       /* This means that there was no entry for 'key' to begin with */
       if (retval == Qnil)
         goto all_done;
@@ -182,29 +234,26 @@ cache_fetch(self, args)
       rb_ary_push(retval, Qnil); 
       continue;
     }
+    e = (CacheEntry *)entry_l;
 
-    /* If object_id is nil at this point, it means the object was GC'd */
-    if (NIL_P(object_id)) {
+    /* If e->free is 1 at this point, it means the object was GC'd */
+    if (e->free == 1) {
       c->misses++;
-      bad_count++;
       rb_ary_push(inspect_ary, rb_inspect(key));
     }
     else {
-      /* convert object id to a pointer; see id2ref in gc.c */
-      ptr = (VALUE)(object_id ^ FIXNUM_FLAG);
-      GetRecord(ptr, r)
-
       if (retval == Qnil) {
-        retval = r->value;
+        retval = e->data;
         goto all_done;
       }
-      rb_ary_push(retval, r->value); 
+      rb_ary_push(retval, e->data); 
     }
   }
 
   /* recover bad keys from the resource */
-  if (bad_count > 0) {
+  if (RARRAY(inspect_ary)->len > 0) {
     /* construct select arguments hash */
+    /* TODO: add C interface for Resource#select? */
     select_args = rb_hash_new();
     rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new("*", 1)));
 
@@ -271,21 +320,23 @@ Init_cache()
   id_select      = rb_intern("select");
   id_next        = rb_intern("next");
   id_close       = rb_intern("close");
+  id_reclaim     = rb_intern("reclaim");
+  id_method      = rb_intern("method");
+  id_to_proc     = rb_intern("to_proc");
+  id_define_finalizer = rb_intern("define_finalizer");
   sym_columns    = ID2SYM(rb_intern("columns"));
   sym_conditions = ID2SYM(rb_intern("conditions"));
 
+  rb_mObSpace = rb_const_get(rb_cObject, rb_intern("ObjectSpace"));
   rb_mLinkage = rb_const_get(rb_cObject, rb_intern("Linkage"));
   rb_mLinkage_cResource = rb_const_get(rb_mLinkage, rb_intern("Resource"));
-  rb_mLinkage_cCache = rb_define_class_under(rb_mLinkage, "Cache", rb_cObject);
-  rb_mLinkage_cCache_cRecord = rb_define_class_under(rb_mLinkage_cCache, "Record", rb_cObject);
   
+  rb_mLinkage_cCache = rb_define_class_under(rb_mLinkage, "Cache", rb_cObject);
   rb_define_alloc_func(rb_mLinkage_cCache, cache_alloc);
   rb_define_method(rb_mLinkage_cCache, "initialize", cache_init, 1);
   rb_define_method(rb_mLinkage_cCache, "add", cache_add, 2);
   rb_define_method(rb_mLinkage_cCache, "fetch", cache_fetch, -2);
   rb_define_method(rb_mLinkage_cCache, "fetches", cache_fetches, 0);
   rb_define_method(rb_mLinkage_cCache, "misses", cache_misses, 0);
-
-  rb_mLinkage_cCache_cRecord = rb_define_class_under(rb_mLinkage_cCache, "Record", rb_cObject);
-  rb_define_method(rb_mLinkage_cCache_cRecord, "initialize", record_init, 0);
+  rb_define_private_method(rb_mLinkage_cCache, "reclaim", cache_reclaim, 1);
 }

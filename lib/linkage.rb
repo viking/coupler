@@ -6,7 +6,6 @@ require 'progress'
 require 'rubygems'
 require 'sqlite3'
 require 'mysql'
-require 'arrayfields'
 require 'ruby-debug'
 
 require 'linkage/extensions'
