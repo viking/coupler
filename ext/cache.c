@@ -21,15 +21,22 @@ struct st_table_entry {
   st_table_entry *next;
 };
 
+typedef struct guar_s {
+  VALUE object;
+  void *next;
+} guar;
+
 typedef struct LinkageCache_s {
   struct st_table *cache;
   struct st_table *rev_cache;
   VALUE resource;
   VALUE primary_key;
   VALUE reclaim_proc;
+  long  guaranteed;
   long  live;
   long  fetches;
   long  misses;
+  guar *ghead;
 } LinkageCache;
 
 typedef struct CacheEntry_s {
@@ -86,22 +93,33 @@ cache_alloc(klass)
   c->live         = 0;
   c->cache        = st_init_numtable();
   c->rev_cache    = st_init_numtable();
+  c->ghead        = 0;
   return Data_Wrap_Struct(klass, cache_mark, cache_free, c);
 }
 
 static VALUE
-cache_init(self, resource_name)
-  VALUE self;
-  VALUE resource_name;
+cache_init(argc, argv, self)
+  int    argc;
+  VALUE *argv;
+  VALUE  self;
 {
   LinkageCache *c;
-  VALUE resource, method;
+  VALUE resource_name, guaranteed, resource, method;
+
+  GetCache(self, c);
+  if (rb_scan_args(argc, argv, "11", &resource_name, &guaranteed)) {
+    if (!NIL_P(guaranteed)) {
+      if (!FIXNUM_P(guaranteed))
+        rb_raise(rb_eTypeError, "wrong argument type %s (expected Fixnum)", rb_obj_classname(guaranteed));
+
+      c->guaranteed = FIX2INT(guaranteed);
+    }
+  }
 
   /* find resource */
   resource = rb_funcall(rb_mLinkage_cResource, id_find, 1, resource_name);
 
   /* initialize data */
-  GetCache(self, c);
   c->resource    = resource;
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
 
@@ -122,7 +140,7 @@ cache_reclaim(self, object_id)
   CacheEntry   *e;
   GetCache(self, c);
 
-  /* this shouldn't ever be false, but can't hurt anything to check */
+  /* this is false in cases where finalizers weren't called directly after GC */
   if (st_delete(c->rev_cache, (st_data_t *)&object_id, (st_data_t *)&key)) {
     /* get entry from real cache */
     if (st_lookup(c->cache, (st_data_t)key, (st_data_t *)&e)) {
@@ -132,6 +150,19 @@ cache_reclaim(self, object_id)
   }
 
   return Qnil;
+}
+
+static void
+cache_reclaim2(c, e, obj)
+  LinkageCache *c;
+  CacheEntry   *e;
+{
+  VALUE object_id;
+
+  object_id = rb_obj_id(e->data);
+  st_delete(c->rev_cache, (st_data_t *)&object_id, 0);
+  e->free = 1;
+  c->live--;
 }
 
 static void
@@ -236,15 +267,18 @@ cache_fetch(self, args)
     }
     e = (CacheEntry *)entry_l;
 
+    /* IMPORTANT! finalizers sometimes aren't called right after GC */
+    if (BUILTIN_TYPE(e->data) == 0 || RBASIC(e->data)->klass == 0) {
+      /* object has been recycled, but not finalized */
+      cache_reclaim2(c, e);
+    }
+
     /* If e->free is 1 at this point, it means the object was GC'd */
     if (e->free == 1) {
       c->misses++;
       rb_ary_push(inspect_ary, rb_inspect(key));
     }
     else {
-      if (BUILTIN_TYPE(e->data) == 0 || RBASIC(e->data)->klass == 0) {
-        rb_raise(rb_eRangeError, "%d points to a recycled object!", FIX2INT(key));
-      }
       if (retval == Qnil) {
         retval = e->data;
         goto all_done;
@@ -336,7 +370,7 @@ Init_cache()
   
   rb_mLinkage_cCache = rb_define_class_under(rb_mLinkage, "Cache", rb_cObject);
   rb_define_alloc_func(rb_mLinkage_cCache, cache_alloc);
-  rb_define_method(rb_mLinkage_cCache, "initialize", cache_init, 1);
+  rb_define_method(rb_mLinkage_cCache, "initialize", cache_init, -1);
   rb_define_method(rb_mLinkage_cCache, "add", cache_add, 2);
   rb_define_method(rb_mLinkage_cCache, "fetch", cache_fetch, -2);
   rb_define_method(rb_mLinkage_cCache, "fetches", cache_fetches, 0);
