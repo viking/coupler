@@ -242,6 +242,9 @@ cache_fetch(self, args)
       rb_ary_push(inspect_ary, rb_inspect(key));
     }
     else {
+      if (BUILTIN_TYPE(e->data) == 0 || RBASIC(e->data)->klass == 0) {
+        rb_raise(rb_eRangeError, "%d points to a recycled object!", FIX2INT(key));
+      }
       if (retval == Qnil) {
         retval = e->data;
         goto all_done;
