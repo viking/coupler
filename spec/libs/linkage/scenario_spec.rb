@@ -214,6 +214,12 @@ describe Linkage::Scenario do
         do_run
       end
 
+      it "should use a guaranteed cache when specified in the YAML" do
+        Linkage::Cache.should_receive(:new).with('scratch', 1000).and_return(@cache)
+        s = create_scenario('guarantee' => 1000)
+        s.run
+      end
+
       it "should count number of records" do
         @resource.should_receive(:count).and_return(4)
         do_run

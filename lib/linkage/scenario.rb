@@ -19,6 +19,7 @@ module Linkage
     def initialize(options)
       @name = options['name']
       @type = options['type']
+      @guarantee = options['guarantee']
 
       case @type
       when 'self-join'
@@ -96,7 +97,7 @@ module Linkage
         @scratch.create_table(resource.table, *schema)
 
         # setup cache
-        cache = Linkage::Cache.new('scratch')
+        cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
         ids   = []
 
         # first pass; transform records, put in scratch database, match record to first

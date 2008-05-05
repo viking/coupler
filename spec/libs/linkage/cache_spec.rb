@@ -2,7 +2,7 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Cache do
   before(:each) do
-    @set = stub("result set", :close => nil)
+    @set = stub("result set", :close => nil, :next => nil)
     @scratch = stub("scratch resource", :primary_key => "ID", :select => @set)
     Linkage::Resource.stub!(:find).and_return(@scratch)
   end
@@ -12,6 +12,32 @@ describe Linkage::Cache do
     Linkage::Cache.new('scratch')
   end
 
+  it "should accept a number of guaranteed records" do
+    Linkage::Cache.new('scratch', 1000)
+  end
+
+  describe "when guaranteeing 10 records" do
+    before(:each) do
+      @cache = Linkage::Cache.new('scratch', 10)
+      (1..10).each do |i|
+        @cache.add(i, [i, "data #{i}"])
+      end
+    end
+
+    it "should mark the first 10 records added" do
+      GC.start
+      @scratch.should_not_receive(:select).and_return(@set)
+      @cache.fetch(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+    end
+
+    it "should have a window of marked records" do
+      @cache.add(11, [11, "data 11"])
+      GC.start
+      @scratch.should_receive(:select).and_return(@set)
+      @cache.fetch(1)
+    end
+  end
+  
   describe do
     before(:each) do
       @cache = Linkage::Cache.new('scratch')
@@ -105,4 +131,5 @@ describe Linkage::Cache do
       end
     end
   end
+
 end

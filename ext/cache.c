@@ -37,6 +37,7 @@ typedef struct LinkageCache_s {
   long  fetches;
   long  misses;
   guar *ghead;
+  guar *gtail;
 } LinkageCache;
 
 typedef struct CacheEntry_s {
@@ -50,12 +51,18 @@ cache_mark(c)
 {
   int i;
   CacheEntry *e;
+  guar *g;
 
   rb_gc_mark(c->resource);
   rb_gc_mark(c->primary_key);
   rb_gc_mark(c->reclaim_proc);
 
-  /* TODO: mark values sometimes depending on number of objects */
+  /* mark values sometimes depending on number of objects */
+  g = c->ghead;
+  while (g) {
+    rb_gc_mark(g->object);
+    g = (guar *)g->next;
+  }
 }
 
 void
@@ -63,6 +70,7 @@ cache_free(c)
   LinkageCache *c;
 {
   st_table_entry *tbl_entry;
+  guar *g, *gtmp;
   int i;
 
   /* free up cache entries */
@@ -77,6 +85,15 @@ cache_free(c)
   }
   st_free_table(c->cache);
   st_free_table(c->rev_cache);
+
+  /* free guaranteed list */
+  g = c->ghead;
+  while (g) {
+    gtmp = (guar *)g->next;
+    free(g);
+    g = gtmp;
+  }
+
   free(c);
 }
 
@@ -94,6 +111,7 @@ cache_alloc(klass)
   c->cache        = st_init_numtable();
   c->rev_cache    = st_init_numtable();
   c->ghead        = 0;
+  c->gtail        = 0;
   return Data_Wrap_Struct(klass, cache_mark, cache_free, c);
 }
 
@@ -113,6 +131,9 @@ cache_init(argc, argv, self)
         rb_raise(rb_eTypeError, "wrong argument type %s (expected Fixnum)", rb_obj_classname(guaranteed));
 
       c->guaranteed = FIX2INT(guaranteed);
+    }
+    else {
+      c->guaranteed = 0;
     }
   }
 
@@ -173,11 +194,12 @@ do_add(c, key, value)
 {
   VALUE objid;
   long entry_l;
-  int  dont_insert;
+  int  dont_add;
   CacheEntry *e;
+  guar *g, *gtmp;
 
   /* see if there's an entry already */
-  if (dont_insert = st_lookup(c->cache, (st_data_t)key, (st_data_t *)&entry_l)) {
+  if (dont_add = st_lookup(c->cache, (st_data_t)key, (st_data_t *)&entry_l)) {
     e = (CacheEntry *)entry_l;
   } else {
     e = ALLOC(CacheEntry);
@@ -191,10 +213,30 @@ do_add(c, key, value)
 
   /* insert entry into cache */
   st_insert(c->rev_cache, (st_data_t)objid, (st_data_t)key);  /* one key per id in this case */
-  if (!dont_insert)
-    st_insert(c->cache, (st_data_t)key, (st_data_t)e);
+  if (!dont_add)
+    st_add_direct(c->cache, (st_data_t)key, (st_data_t)e);
 
+  /* handle guaranteeing */
   c->live++;
+  if (c->guaranteed > 0) {
+    guar *g = ALLOC(guar);
+    g->object = value;
+    g->next   = NULL;
+    if (c->gtail) {
+      c->gtail->next = (void *)g;
+      c->gtail = g; 
+    }
+    else {
+      c->ghead = c->gtail = g;
+    }
+
+    if (c->live > c->guaranteed) {
+      /* take off front */
+      gtmp     = (guar *)c->ghead;
+      c->ghead = (guar *)c->ghead->next;
+      free(gtmp);
+    }
+  }
 }
 
 static VALUE
