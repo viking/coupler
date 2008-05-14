@@ -34,6 +34,6 @@ scenarios:
       - field: MomSSN
         formula: "(!a.nil? && a == b) ? 100 : 0"
     scoring:
-      cutlist:
+      groups:
         perfect: '100..100'
-      formula: "scores.first"
+      combining method: "mean"

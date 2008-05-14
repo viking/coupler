@@ -1,18 +1,5 @@
 module Linkage
   class Scenario
-    class Matcher
-      attr_reader :field
-      def initialize(options)
-        @field = options['field']
-        @formula = options['formula']
-        self.instance_eval(<<-EOF, __FILE__, __LINE__)
-          def score(a, b)
-            #{@formula}
-          end
-        EOF
-      end
-    end
-
     DEBUG = ENV['DEBUG']
 
     attr_reader :name, :type
@@ -28,44 +15,48 @@ module Linkage
       end
       @scratch = Linkage::Resource.find('scratch')
 
-      matcher_fields = []
-      @matchers = options['matchers'].collect do |config|
-        matcher_fields << config['field']
-        Matcher.new(config)
+      # grab list of fields
+      matcher_fields     = options['matchers'].collect { |m| m['field'] }
+      transformer_fields = if options['transformations']
+        then options['transformations'].collect { |t| t['arguments'].values }.flatten
+        else []
+      end
+      @field_list = (matcher_fields + transformer_fields).uniq
+      @field_list.unshift(@resources[0].primary_key)  if @type == 'self-join'
+
+      # grab scoring groups
+      @groups = options['scoring']['groups'].inject({}) do |hsh, (key, value)|
+        hsh[key] = value.is_a?(Range) ? value : eval(value)
+        hsh
       end
 
+      # setup matchers
+      @master_matcher = Linkage::Matchers::MasterMatcher.new({
+        'field list'       => @field_list,
+        'combining method' => options['scoring']['combining method'],
+        'groups'           => @groups 
+      })
+      options['matchers'].each { |m| @master_matcher.add_matcher(m) }
+
+      # grab transformers
       @transformations = []
-      xform_fields     = []
       options['transformations'].each do |info|
         next  unless matcher_fields.include?(info['name'])
 
-        xform_fields.push(*info['arguments'].values)
         t = Linkage::Transformer.find(info['transformer'])
         raise "can't find transformer '#{info['transformer']}'"  unless t
         info['transformer'] = t
         @transformations << info
       end if options['transformations']
 
-      # scoring stuff
-      @scoring = options['scoring']
-      @scoring['groups'] = @scoring['cutlist'].keys.sort
-      @scoring['ranges'] = @scoring['groups'].collect { |n| eval(@scoring['cutlist'][n]) }
-      self.instance_eval(<<-EOF, __FILE__, __LINE__)
-        def combine_scores(scores)
-          #{@scoring['formula']}
-        end
-      EOF
-      
-      @all_fields = (matcher_fields + xform_fields).uniq
-      @all_fields.unshift(@resources[0].primary_key)  if @type == 'self-join'
-
+      # other
       @conditions = options['blocking']
       @limit = options['limit']  # undocumented and untested, wee!
     end
 
     def run
       Linkage.logger.info("Scenario (#{name}): Run start")  if Linkage.logger
-      retval = @scoring['groups'].inject({}) { |hsh, name| hsh[name] = []; hsh }
+      retval = @groups.keys.inject({}) { |hsh, name| hsh[name] = []; hsh }
 
       case @type
       when 'self-join'
@@ -78,13 +69,14 @@ module Linkage
         progress = Progress.new(@num_records)   if DEBUG
         record_set = grab_records(resource)
 
-        # grab first record and do transformations
+        # grab first record and do transformations so that we know how
+        # to setup the scratch database
         record = transform(record_set.next)
         record_id = record[0]
 
         # setup scratch database
         schema = []
-        @all_fields.each_with_index do |field, i|
+        @field_list.each_with_index do |field, i|
           case record[i]
           when Fixnum, Bignum
             schema << "#{field} int"
@@ -95,39 +87,35 @@ module Linkage
         end
         @scratch.drop_table(resource.table)
         @scratch.create_table(resource.table, *schema)
+        @scratch.insert(@field_list, record)
 
         # setup cache
         cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
-        ids   = []
+        cache.add(record_id, record)
+        ids = [record_id]
 
-        # first pass; transform records, put in scratch database, match record to first
-        progress.next   if DEBUG
-        Linkage.logger.debug("Scenario (#{self.name}): Comparing record #{record_id}") if Linkage.logger
+        # transform all records first
         while(true) do
-          candidate = record_set.next
-          if candidate.nil?
+          record = record_set.next
+          if record.nil?
             # grab next set of records, or quit
             record_set.close
             record_set = grab_records(resource)
             if record_set 
-              candidate = record_set.next
+              record = record_set.next
             else
               break
             end
           end
 
-          candidate = transform(candidate)
-          candidate_id = candidate[0]
-          @scratch.insert(@all_fields, candidate)   # save in database
-          cache.add(candidate_id, candidate)        # save in cache
-          ids << candidate_id
-
-          # match records
-          group, score = match(record, candidate)
-          retval[group] << [record_id, candidate_id, score] if group
+          record    = transform(record)
+          record_id = record[0]
+          @scratch.insert(@field_list, record)  # save in database
+          cache.add(record_id, record)          # save in cache
+          ids << record_id
         end
 
-        # now match the rest of the records
+        # now match!
         ids.each_with_index do |record_id, i|
           break if i == (ids.length - 1)
 
@@ -140,11 +128,7 @@ module Linkage
           count.times do |j|
             lower = i + 1 + (j*1000)
             candidates = cache.fetch(ids[lower..(lower+1000)])
-            candidates.each do |candidate|
-              # match records
-              group, score = match(record, candidate)
-              retval[group] << [record_id, candidate[0], score] if group
-            end
+            retval.push(@master_matcher.score(record, candidates))
           end
         end
 
@@ -164,11 +148,11 @@ module Linkage
           limit = @limit && @limit < 1000 ? @limit : 1000
           if @conditions
             set = resource.select({
-              :limit => limit, :columns => @all_fields, :conditions => @conditions,
+              :limit => limit, :columns => @field_list, :conditions => @conditions,
               :offset => @record_offset
             })
           else
-            args = @all_fields + [{:offset => @record_offset}]  # this is a bit silly
+            args = @field_list + [{:offset => @record_offset}]  # this is a bit silly
             set = resource.select_num(limit, *args)
           end
           @num_records   -= 1000 
@@ -183,29 +167,13 @@ module Linkage
           transformer = info['transformer']
           field = info['name']
           args = info['arguments'].inject({}) do |args, (key, val)|
-            index = @all_fields.index(val)
+            index = @field_list.index(val)
             args[key] = record[index]
             args
           end
-          record[@all_fields.index(field)] = transformer.transform(args)
+          record[@field_list.index(field)] = transformer.transform(args)
         end
         record
-      end
-
-      def match(record, candidate)
-        scores = []
-        @matchers.each do |matcher|
-          index = @all_fields.index(matcher.field)
-          scores << matcher.score(record[index], candidate[index])
-        end
-
-        # combine scores
-        final_score = combine_scores(scores)
-        @scoring['ranges'].each_with_index do |range, i|
-          next  unless range.include?(final_score)
-          return @scoring['groups'][i], final_score
-        end
-        nil
       end
   end
 end
