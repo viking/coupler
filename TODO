@@ -1,2 +1,0 @@
-- shunt more functionality from MasterMatcher to invidual matchers
-  so that they have more control (ex. ExactMatcher could sort elements)
