@@ -1,6 +1,28 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
+shared_examples_for "any combining method" do
+  it "should call score for each matcher" do
+    @exact.should_receive(:score).and_return([[80, 60, 0], [30, 70], [25]])
+    @default.should_receive(:score).and_return([[0, 100, 0], [100, 0], [100]])
+    @master.score
+  end
+
+  it "should grab keys from the cache" do
+    @cache.should_receive(:keys).and_return([1, 2, 3, 4])
+    @master.score
+  end
+end
+
 describe Linkage::Matchers::MasterMatcher do
+  before(:each) do
+    @exact    = stub("exact matcher", :field => 'bar')
+    @default  = stub("default matcher", :field => 'foo')
+    @cache    = stub(Linkage::Cache)
+    @resource = stub(Linkage::Resource)
+    Linkage::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
+    Linkage::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
+  end
+
   def create_master(options = {})
     Linkage::Matchers::MasterMatcher.new({
       'field list' => %w{id foo bar},
@@ -9,7 +31,9 @@ describe Linkage::Matchers::MasterMatcher do
         'good'  => 40..75,
         'great' => 75..90,
         'leet'  => 91..100
-      }
+      },
+      'cache'    => @cache,
+      'resource' => @resource
     }.merge(options))
   end
 
@@ -18,13 +42,6 @@ describe Linkage::Matchers::MasterMatcher do
     m.add_matcher({'field' => 'bar', 'type' => 'exact'})
     m.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
     m
-  end
-
-  before(:each) do
-    @exact   = stub("exact matcher", :field => 'bar')
-    @default = stub("default matcher", :field => 'foo')
-    Linkage::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
-    Linkage::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
   end
 
   it "should have a field_list" do
@@ -58,14 +75,16 @@ describe Linkage::Matchers::MasterMatcher do
 
     it "should create an exact matcher" do
       Linkage::Matchers::ExactMatcher.should_receive(:new).with({
-        'field' => 'bar', 'type' => 'exact'
+        'field' => 'bar', 'type' => 'exact', 'index' => 2,
+        'resource' => @resource
       }).and_return(@exact)
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
     end
 
     it "should create an default matcher" do
       Linkage::Matchers::DefaultMatcher.should_receive(:new).with({
-        'field' => 'foo', 'formula' => 'a > b ? 100 : 0'
+        'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
+        'cache' => @cache
       }).and_return(@default)
       @master.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
     end
@@ -73,12 +92,9 @@ describe Linkage::Matchers::MasterMatcher do
 
   describe "#score" do
     before(:each) do
-      @record_1 = [1, 321, '123456789']
-      @record_2 = [2, 123, '123456789']
-      @record_3 = [3, 456, '867530999']
-      @record_4 = [4, 0, 'blah']
-      @exact.stub!(:score).with('123456789', ['123456789', '867530999', 'blah']).and_return([80, 60, 0])
-      @default.stub!(:score).with(321, [123, 456, 0]).and_return([0, 100, 0])
+      @exact.stub!(:score).with.and_return([[80, 60, 0], [30, 70], [25]])
+      @default.stub!(:score).with.and_return([[0, 100, 0], [100, 0], [100]])
+      @cache.stub!(:keys).and_return([1, 2, 3, 4])
     end
 
     describe "when using the mean combining method" do
@@ -86,21 +102,11 @@ describe Linkage::Matchers::MasterMatcher do
         @master = create_master_with_matchers
       end
 
-      it "should call score for each matcher when scoring two records" do
-        @exact.should_receive(:score).with('123456789', ['123456789']).and_return([100])
-        @default.should_receive(:score).with(321, [123]).and_return([0])
-        @master.score(@record_1, @record_2)
-      end
-
-      it "should call score for each matcher when scoring four records" do
-        @exact.should_receive(:score).with('123456789', ['123456789', '867530999', 'blah']).and_return([80, 60, 0])
-        @default.should_receive(:score).with(321, [123, 456, 0]).and_return([0, 100, 0])
-        @master.score(@record_1, [@record_2, @record_3, @record_4])
-      end
+      it_should_behave_like "any combining method"
 
       it "should return a hash of group arrays" do
-        @master.score(@record_1, [@record_2, @record_3, @record_4]).should == {
-          'good'  => [[1, 2, 40]],
+        @master.score.should == {
+          'good'  => [[1, 2, 40], [2, 3, 65], [3, 4, 62]],
           'great' => [[1, 3, 80]]
         }
       end
@@ -118,9 +124,11 @@ describe Linkage::Matchers::MasterMatcher do
         })
       end
 
+      it_should_behave_like "any combining method"
+
       it "should return an array of sums" do
-        @master.score(@record_1, [@record_2, @record_3, @record_4]).should == {
-          'good'  => [[1, 2, 80]],
+        @master.score.should == {
+          'good'  => [[1, 2, 80], [2, 3, 130], [3, 4, 125]],
           'great' => [[1, 3, 160]]
         }
       end

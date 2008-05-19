@@ -1,0 +1,58 @@
+resources:
+  - name: linkage_test
+    connection:
+      adapter: sqlite3
+      database: db/test.sqlite3
+      timeout: 3000
+    table: 
+      name: records
+      primary_key: ID
+  - name: scratch
+    connection:
+      adapter: sqlite3
+      database: db/scratch.sqlite3
+      timeout: 3000
+
+transformers:
+  - name: ssn_filter
+    parameters:
+      - name: ssn
+        regexp: "(\d)\1{8}"
+    formula: "nil"
+    default: "ssn"
+
+scenarios:
+  - name: ssn_linkage
+    type: self-join
+    resource: linkage_test
+    transformations:
+      - name: ssn
+        transformer: ssn_filter
+        arguments:
+          ssn: ssn
+    matchers:
+      - field: ssn
+        type: exact
+    scoring:
+      groups:
+        perfect: '100..100'
+      combining method: "mean"
+  - name: ssn_dob_linkage
+    type: self-join
+    resource: linkage_test
+    transformations:
+      - name: ssn
+        transformer: ssn_filter
+        arguments:
+          ssn: ssn
+    matchers:
+      - field: ssn
+        type: exact
+      - field: dob
+        type: exact
+        scores: [40, 60]
+    scoring:
+      groups:
+        perfect: 160..160
+        good: 60..140 
+      combining method: sum

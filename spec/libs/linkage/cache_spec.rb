@@ -42,18 +42,44 @@ describe Linkage::Cache do
       @cache = Linkage::Cache.new('scratch')
     end
 
-#    describe "#keys" do
-#      it "should return keys" do
-#        @cache.add(1, "data 1")
-#        @cache.add(2, "data 2")
-#        @cache.add(3, "data 3")
-#        @cache.keys.sort.should == [1,2,3]
-#      end
-#    end
-#
+    describe "#count" do
+      it "should return number of items" do
+        (1..10).each { |i| @cache.add(i, [i, "data #{i}"]) }
+        @cache.count.should == 10
+      end
+    end
+
+    describe "#keys" do
+      it "should return keys in order of creation" do
+        (1..100).each { |i| @cache.add(i, [i, "data #{i}"]) }
+        @cache.keys.should == (1..100).to_a
+      end
+    end
+
     describe "#add" do
       it "should add data to the cache" do
         @cache.add(1, "data 1")
+      end
+    end
+
+    describe "#clear" do
+      before(:each) do
+        (1..10).each do |i|
+          @cache.add(i, [i, "data #{i}"])
+        end
+        @cache.clear
+      end
+
+      it "should clear keys" do
+        @cache.keys.should be_empty
+      end
+
+      it "should clear the cache" do
+        @cache.fetch(1).should be_nil
+      end
+
+      it "should set count to 0" do
+        @cache.count.should == 0
       end
     end
 

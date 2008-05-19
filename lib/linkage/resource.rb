@@ -97,21 +97,17 @@ module Linkage
       columns.collect! { |c| c == "*" ? "#{@table}.*" : c }
 
       columns = columns.nil? || columns.empty? ? columns = "*" : columns.join(", ")
-      conditions = options[:conditions] ? " #{options[:conditions]}" : ""
-      limit      = options[:limit] ? " LIMIT #{options[:limit]}" : ""
-      offset     = options[:offset] ? " OFFSET #{options[:offset]}" : ""
+      conditions = options[:conditions] ? " #{options[:conditions]}"     : ""
+      limit      = options[:limit]      ? " LIMIT #{options[:limit]}"    : ""
+      offset     = options[:offset]     ? " OFFSET #{options[:offset]}"  : ""
+      order      = options[:order]      ? " ORDER BY #{options[:order]}" : ""
       
-      qry = "SELECT #{columns} FROM #{@table}#{conditions}#{limit}#{offset}"
+      qry = "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
       Linkage.logger.debug("Resource (#{name}): #{qry}")  if Linkage.logger
-      begin
-        result = case @configuration['adapter']
-                 when 'sqlite3' then connection.query(qry)
-                 when 'mysql'   then connection.prepare(qry).execute
-                 end
-      rescue Exception => boom
-        debugger
-        p boom
-      end
+      result = case @configuration['adapter']
+               when 'sqlite3' then connection.query(qry)
+               when 'mysql'   then connection.prepare(qry).execute
+               end
       ResultSet.new(result, @configuration['adapter'])
     end
 

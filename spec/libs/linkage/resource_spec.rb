@@ -1,5 +1,138 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
+shared_examples_for "any adapter" do
+  describe "#select_all" do
+    it "should select * from birth_all" do
+      @conn.should_receive(@query_method).with("SELECT * FROM birth_all").and_return(@query_result)
+      @resource.select_all
+    end
+
+    it "should select the given fields from birth_all" do
+      @conn.should_receive(@query_method).with("SELECT MomSSN, MomDOB FROM birth_all").and_return(@query_result)
+      @resource.select_all("MomSSN", "MomDOB")
+    end
+
+    it "should create and return a Resource::ResultSet" do
+      Linkage::Resource::ResultSet.should_receive(:new).with(@query_result, @resource.configuration['adapter']).and_return(@result_set)
+      @resource.select_all.should == @result_set
+    end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): SELECT * FROM birth_all")
+      @resource.select_all
+    end
+  end
+
+  describe "#select_num" do
+    it "should select only a certain number of records" do
+      @conn.should_receive(@query_method).with("SELECT * FROM birth_all LIMIT 10").and_return(@query_result)
+      @resource.select_num(10)
+    end
+
+    it "should select the given fields from birth_all" do
+      @conn.should_receive(@query_method).with("SELECT MomSSN, MomDOB FROM birth_all LIMIT 10").and_return(@query_result)
+      @resource.select_num(10, "MomSSN", "MomDOB")
+    end
+
+    it "should create and return a Resource::ResultSet" do
+      Linkage::Resource::ResultSet.should_receive(:new).with(@query_result, @resource.configuration['adapter']).and_return(@result_set)
+      @resource.select_num(10).should == @result_set
+    end
+
+    it "should use an offset to select records" do
+      @conn.should_receive(@query_method).with("SELECT * FROM birth_all LIMIT 10 OFFSET 10").and_return(@query_result)
+      @resource.select_num(10, :offset => 10)
+    end
+  end
+
+  describe "#select_one" do
+    it "should run: SELECT * FROM birth_all WHERE ID = 123" do
+      @conn.should_receive(@query_method).with("SELECT * FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@query_result)
+      @resource.select_one(123)
+    end
+
+    it "should select the given fields for the record with id 123" do
+      @conn.should_receive(@query_method).with("SELECT ID, MomSSN FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@query_result)
+      @resource.select_one(123, "ID", "MomSSN")
+    end
+
+    it "should create a Resource::ResultSet" do
+      Linkage::Resource::ResultSet.should_receive(:new).with(@query_result, @resource.configuration['adapter']).and_return(@result_set)
+      @resource.select_one(123)
+    end
+
+    it "should return the first result" do
+      @result_set.stub!(:next).and_return([123])
+      @resource.select_one(123).should == [123]
+    end
+
+    it "should close the result set" do
+      @result_set.should_receive(:close)
+      @resource.select_one(123)
+    end
+  end
+
+  describe "#insert" do
+    it "should run: INSERT INTO birth_all (...) VALUES(...)" do
+      @conn.should_receive(:query).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")})
+      @resource.insert(%w{ID MomSSN}, [123, "123456789"])
+    end
+  end
+
+  describe "#create_table" do
+    it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
+      @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
+      @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
+    end
+
+    it "should set table attribute" do
+      @resource.create_table("foo", "ID int")
+      @resource.table.should == "foo"
+    end
+
+    it "should set primary key attribute" do
+      @resource.create_table("foo", "huge_id int")
+      @resource.primary_key.should == "huge_id"
+    end
+  end
+
+  describe "#drop_table" do
+    it "should run: DROP TABLE foo" do
+      @conn.should_receive(:query).with(%{DROP TABLE foo})
+      @resource.drop_table("foo")
+    end
+
+    it "should catch exception it table doesn't exist" do
+      @conn.stub!(:query).with(%{DROP TABLE foo}).and_raise(@error_klass)
+      lambda { @resource.drop_table("foo") }.should_not raise_error
+    end
+  end
+
+  describe "#count" do
+    it "should run: SELECT COUNT(*) FROM birth_all" do
+      @conn.should_receive(@query_method).with("SELECT COUNT(*) FROM birth_all").and_return(@query_result)
+      @resource.count
+    end
+
+    it "should return an integer" do
+      @result_set.stub!(:next).and_return([100])
+      @resource.count.should == 100
+    end
+  end
+
+  describe "#select" do
+    it "should accept :order" do
+      @conn.should_receive(@query_method).with("SELECT foo FROM birth_all ORDER BY foo").and_return(@query_result)
+      @resource.select(:columns => ["foo"], :order => "foo")
+    end
+
+    it "should change * to birth_all.*" do
+      @conn.should_receive(@query_method).with("SELECT ID, birth_all.* FROM birth_all").and_return(@query_result)
+      @resource.select(:columns => ["ID", "*"])
+    end
+  end
+end
+
 describe Linkage::Resource do
 
   @@num = 1
@@ -25,9 +158,9 @@ describe Linkage::Resource do
   end
 
   before(:each) do
-    @result = stub("result set", :next => [], :close => nil)
+    @result_set = stub("result set", :next => [], :close => nil)
     @logger = stub(Logger, :info => nil, :debug => nil, :add => nil)
-    Linkage::Resource::ResultSet.stub!(:new).and_return(@result)
+    Linkage::Resource::ResultSet.stub!(:new).and_return(@result_set)
     Linkage.stub!(:logger).and_return(@logger)
   end
 
@@ -60,11 +193,15 @@ describe Linkage::Resource do
   describe "when connection is using sqlite3 adapter" do
 
     before(:each) do
-      @set  = stub(SQLite3::ResultSet)
-      @conn = stub("sqlite3 connection", :query => @set, :type_translation= => nil)
+      @query_method = :query
+      @query_result = stub(SQLite3::ResultSet)
+      @error_klass = SQLite3::SQLException
+      @conn = stub("sqlite3 connection", :query => @query_result, :type_translation= => nil)
       SQLite3::Database.stub!(:new).and_return(@conn)
       @resource = create_resource
     end
+
+    it_should_behave_like "any adapter"
     
     it "should establish a connection to the database" do
       SQLite3::Database.should_receive(:new).with('db/birth.sqlite3').and_return(@conn)
@@ -80,134 +217,17 @@ describe Linkage::Resource do
       @conn.should_receive(:type_translation=).with(true)
       @resource.connection
     end
-
-    describe "#select_all" do
-      it "should select * from birth_all" do
-        @conn.should_receive(:query).with("SELECT * FROM birth_all").and_return(@result)
-        @resource.select_all
-      end
-
-      it "should select the given fields from birth_all" do
-        @conn.should_receive(:query).with("SELECT MomSSN, MomDOB FROM birth_all").and_return(@result)
-        @resource.select_all("MomSSN", "MomDOB")
-      end
-
-      it "should create and return a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@set, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_all.should == @result
-      end
-
-      it "should log its query" do
-        @logger.should_receive(:debug).with("Resource (#{@resource.name}): SELECT * FROM birth_all")
-        @resource.select_all
-      end
-    end
-
-    describe "select_num" do
-      it "should select only a certain number of records" do
-        @conn.should_receive(:query).with("SELECT * FROM birth_all LIMIT 10").and_return(@set)
-        @resource.select_num(10)
-      end
-
-      it "should select the given fields from birth_all" do
-        @conn.should_receive(:query).with("SELECT MomSSN, MomDOB FROM birth_all LIMIT 10").and_return(@result)
-        @resource.select_num(10, "MomSSN", "MomDOB")
-      end
-
-      it "should create and return a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@set, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_num(10).should == @result
-      end
-
-      it "should use an offset to select records" do
-        @conn.should_receive(:query).with("SELECT * FROM birth_all LIMIT 10 OFFSET 10").and_return(@result)
-        @resource.select_num(10, :offset => 10)
-      end
-    end
-
-    describe "#select_one" do
-      it "should run: SELECT * FROM birth_all WHERE ID = 123" do
-        @conn.should_receive(:query).with("SELECT * FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@set)
-        @resource.select_one(123)
-      end
-
-      it "should select the given fields for the record with id 123" do
-        @conn.should_receive(:query).with("SELECT ID, MomSSN FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@set)
-        @resource.select_one(123, "ID", "MomSSN")
-      end
-
-      it "should create a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@set, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_one(123)
-      end
-
-      it "should return the first result" do
-        @result.stub!(:next).and_return([123])
-        @resource.select_one(123).should == [123]
-      end
-
-      it "should close the result set" do
-        @result.should_receive(:close)
-        @resource.select_one(123)
-      end
-    end
-
-    describe "#insert" do
-      it "should run: INSERT INTO birth_all (...) VALUES(...)" do
-        @conn.should_receive(:query).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")})
-        @resource.insert(%w{ID MomSSN}, [123, "123456789"])
-      end
-    end
-
-    describe "#create_table" do
-      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
-        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
-        @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
-      end
-
-      it "should set table attribute" do
-        @resource.create_table("foo", "ID int")
-        @resource.table.should == "foo"
-      end
-
-      it "should set primary key attribute" do
-        @resource.create_table("foo", "huge_id int")
-        @resource.primary_key.should == "huge_id"
-      end
-    end
-
-    describe "#drop_table" do
-      it "should run: DROP TABLE foo" do
-        @conn.should_receive(:query).with(%{DROP TABLE foo})
-        @resource.drop_table("foo")
-      end
-
-      it "should catch exception it table doesn't exist" do
-        @conn.stub!(:query).with(%{DROP TABLE foo}).and_raise(SQLite3::SQLException)
-        lambda { @resource.drop_table("foo") }.should_not raise_error
-      end
-    end
-
-    describe "#count" do
-      it "should run: SELECT COUNT(*) FROM birth_all" do
-        @conn.should_receive(:query).with("SELECT COUNT(*) FROM birth_all")
-        @resource.count
-      end
-
-      it "should return an integer" do
-        @result.stub!(:next).and_return([100])
-        @resource.count.should == 100
-      end
-    end
   end
 
   describe "when connection is using mysql adapter" do
 
     before(:each) do
-      @set  = stub(Mysql::Result)
-      @stmt = stub(Mysql::Stmt)
-      @stmt.stub!(:execute).and_return(@stmt)
-      @conn = stub("mysql connection", :prepare => @stmt, :query => @set)
+      @set = stub(Mysql::Result)
+      @query_method = :prepare
+      @query_result = stub(Mysql::Stmt)
+      @query_result.stub!(:execute).and_return(@query_result)
+      @error_klass = Mysql::Error
+      @conn = stub("mysql connection", :prepare => @query_result, :query => @set)
       Mysql.stub!(:new).and_return(@conn)
       @resource = create_resource({
         'connection' => {
@@ -220,134 +240,17 @@ describe Linkage::Resource do
       })
     end
     
+    it_should_behave_like "any adapter"
+
     it "should establish a connection to the database" do
       Mysql.should_receive(:new).with("localhost", "viking", "pillage", "foo").and_return(@conn)
       @resource.connection.should == @conn
     end
 
-    describe "#select" do
-      it "should change * to birth_all.*" do
-        @conn.should_receive(:prepare).with("SELECT ID, birth_all.* FROM birth_all").and_return(@stmt)
-        @resource.select(:columns => ["ID", "*"])
-      end
-    end
-    
     describe "#select_all" do
-      it "should prepare: SELECT * FROM birth_all" do
-        @conn.should_receive(:prepare).with("SELECT * FROM birth_all").and_return(@stmt)
-        @resource.select_all
-      end
-
       it "should execute the statement" do
-        @stmt.should_receive(:execute)
+        @query_result.should_receive(:execute)
         @resource.select_all
-      end
-
-      it "should prepare to select the given fields from birth_all" do
-        @conn.should_receive(:prepare).with("SELECT MomSSN, MomDOB FROM birth_all").and_return(@stmt)
-        @resource.select_all("MomSSN", "MomDOB")
-      end
-
-      it "should create and return a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@stmt, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_all.should == @result
-      end
-    end
-
-    describe "#select_one" do
-      it "should prepare: SELECT * FROM birth_all WHERE ID = 123" do
-        @conn.should_receive(:prepare).with("SELECT * FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@stmt)
-        @resource.select_one(123)
-      end
-
-      it "should select the given fields for the record with id 123" do
-        @conn.should_receive(:prepare).with("SELECT ID, MomSSN FROM birth_all WHERE ID = 123 LIMIT 1").and_return(@stmt)
-        @resource.select_one(123, "ID", "MomSSN")
-      end
-
-      it "should create a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@stmt, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_one(123)
-      end
-
-      it "should return the first result" do
-        @result.stub!(:next).and_return([123])
-        @resource.select_one(123).should == [123]
-      end
-
-      it "should close the result set" do
-        @result.should_receive(:close)
-        @resource.select_one(123)
-      end
-    end
-
-    describe "#select_num" do
-      it "should select only a certain number of records" do
-        @conn.should_receive(:prepare).with("SELECT * FROM birth_all LIMIT 10").and_return(@stmt)
-        @resource.select_num(10)
-      end
-
-      it "should select the given fields from birth_all" do
-        @conn.should_receive(:prepare).with("SELECT MomSSN, MomDOB FROM birth_all LIMIT 10").and_return(@stmt)
-        @resource.select_num(10, "MomSSN", "MomDOB")
-      end
-
-      it "should create and return a Resource::ResultSet" do
-        Linkage::Resource::ResultSet.should_receive(:new).with(@stmt, @resource.configuration['adapter']).and_return(@result)
-        @resource.select_num(10).should == @result
-      end
-
-      it "should use an offset to select records" do
-        @conn.should_receive(:prepare).with("SELECT * FROM birth_all LIMIT 10 OFFSET 10").and_return(@stmt)
-        @resource.select_num(10, :offset => 10)
-      end
-    end
-
-    describe "#insert" do
-      it "should run: INSERT INTO birth_all (...) VALUES(...)" do
-        @conn.should_receive(:query).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")})
-        @resource.insert(%w{ID MomSSN}, [123, "123456789"])
-      end
-    end
-
-    describe "#create_table" do
-      it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
-        @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
-        @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
-      end
-
-      it "should set table attribute" do
-        @resource.create_table("foo", "ID int")
-        @resource.table.should == "foo"
-      end
-
-      it "should set primary key attribute" do
-        @resource.create_table("foo", "huge_id int")
-        @resource.primary_key.should == "huge_id"
-      end
-    end
-
-    describe "#count" do
-      it "should run: SELECT COUNT(*) FROM birth_all" do
-        @conn.should_receive(:prepare).with("SELECT COUNT(*) FROM birth_all").and_return(@stmt)
-        @resource.count
-      end
-
-      it "should return an integer" do
-        @result.stub!(:next).and_return([100])
-        @resource.count.should == 100
-      end
-    end
-
-    describe "#drop_table" do
-      it "should run: DROP TABLE foo" do
-        @conn.should_receive(:query).with(%{DROP TABLE foo})
-        @resource.drop_table("foo")
-      end
-
-      it "should catch exception it table doesn't exist" do
-        @conn.stub!(:query).with(%{DROP TABLE foo}).and_raise(Mysql::Error)
-        lambda { @resource.drop_table("foo") }.should_not raise_error
       end
     end
   end

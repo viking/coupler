@@ -14,6 +14,7 @@ module Linkage
         raise "can't find resource '#{options['resource']}'"   unless @resources[0]
       end
       @scratch = Linkage::Resource.find('scratch')
+      @cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
 
       # grab list of fields
       matcher_fields     = options['matchers'].collect { |m| m['field'] }
@@ -34,7 +35,9 @@ module Linkage
       @master_matcher = Linkage::Matchers::MasterMatcher.new({
         'field list'       => @field_list,
         'combining method' => options['scoring']['combining method'],
-        'groups'           => @groups 
+        'groups'           => @groups,
+        'cache'            => @cache,
+        'resource'         => @scratch
       })
       options['matchers'].each { |m| @master_matcher.add_matcher(m) }
 
@@ -55,8 +58,8 @@ module Linkage
     end
 
     def run
+      @cache.clear
       Linkage.logger.info("Scenario (#{name}): Run start")  if Linkage.logger
-      retval = @groups.keys.inject({}) { |hsh, name| hsh[name] = []; hsh }
 
       case @type
       when 'self-join'
@@ -88,10 +91,7 @@ module Linkage
         @scratch.drop_table(resource.table)
         @scratch.create_table(resource.table, *schema)
         @scratch.insert(@field_list, record)
-
-        # setup cache
-        cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
-        cache.add(record_id, record)
+        @cache.add(record_id, record)
         ids = [record_id]
 
         # transform all records first
@@ -111,31 +111,17 @@ module Linkage
           record    = transform(record)
           record_id = record[0]
           @scratch.insert(@field_list, record)  # save in database
-          cache.add(record_id, record)          # save in cache
+          @cache.add(record_id, record)         # save in cache
           ids << record_id
         end
 
         # now match!
-        ids.each_with_index do |record_id, i|
-          break if i == (ids.length - 1)
-
-          progress.next   if DEBUG
-          Linkage.logger.debug("Scenario (#{self.name}): Comparing record #{record_id}") if Linkage.logger
-          record = cache.fetch(record_id)
-
-          # grab 1000 records at a time from the cache
-          count = ((ids.length - (i + 1)) / 1000) + 1
-          count.times do |j|
-            lower = i + 1 + (j*1000)
-            candidates = cache.fetch(ids[lower..(lower+1000)])
-            retval.push(@master_matcher.score(record, candidates))
-          end
-        end
+        retval = @master_matcher.score
 
         if DEBUG
           puts "*** Cache summary ***"
-          puts "Fetches: #{cache.fetches}"
-          puts "Misses:  #{cache.misses}"
+          puts "Fetches: #{@cache.fetches}"
+          puts "Misses:  #{@cache.misses}"
         end
 
         retval

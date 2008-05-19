@@ -32,6 +32,7 @@ typedef struct LinkageCache_s {
   VALUE resource;
   VALUE primary_key;
   VALUE reclaim_proc;
+  VALUE keys;
   long  guaranteed;
   long  live;
   long  fetches;
@@ -56,6 +57,7 @@ cache_mark(c)
   rb_gc_mark(c->resource);
   rb_gc_mark(c->primary_key);
   rb_gc_mark(c->reclaim_proc);
+  rb_gc_mark(c->keys);
 
   /* mark values sometimes depending on number of objects */
   g = c->ghead;
@@ -66,25 +68,37 @@ cache_mark(c)
 }
 
 void
-cache_free(c)
+do_clear(c)
   LinkageCache *c;
 {
-  st_table_entry *tbl_entry;
+  struct st_table *hash;
+  st_table_entry *ptr, *next;
   guar *g, *gtmp;
   int i;
 
   /* free up cache entries */
-  if (c->cache->num_entries > 0) {
-    for (i = 0; i < c->cache->num_bins; i++) {
-      tbl_entry = c->cache->bins[i];
-      while (tbl_entry) {
-        free((CacheEntry *)tbl_entry->record);
-        tbl_entry = tbl_entry->next;
+  hash = c->cache;
+  while (1) {
+    if (hash->num_entries > 0) {
+      for (i = 0; i < hash->num_bins; i++) {
+        ptr = hash->bins[i];
+        while (ptr) {
+          next = ptr->next;
+          if (hash == c->cache)
+            free((CacheEntry *)ptr->record);
+          free(ptr);
+          ptr = next; 
+        }
+        hash->bins[i] = 0;
       }
+      hash->num_entries = 0;
     }
+
+    if (hash == c->rev_cache)
+      break;
+    else
+      hash = c->rev_cache;
   }
-  st_free_table(c->cache);
-  st_free_table(c->rev_cache);
 
   /* free guaranteed list */
   g = c->ghead;
@@ -93,7 +107,19 @@ cache_free(c)
     free(g);
     g = gtmp;
   }
+  c->ghead = c->gtail = 0;
 
+  rb_ary_clear(c->keys);
+  c->live = 0;
+}
+
+void
+cache_free(c)
+  LinkageCache *c;
+{
+  do_clear(c);
+  st_free_table(c->cache);
+  st_free_table(c->rev_cache);
   free(c);
 }
 
@@ -105,6 +131,7 @@ cache_alloc(klass)
   c->resource     = Qnil;
   c->primary_key  = Qnil;
   c->reclaim_proc = Qnil;
+  c->keys         = Qnil;
   c->fetches      = 0;
   c->misses       = 0;
   c->live         = 0;
@@ -143,6 +170,7 @@ cache_init(argc, argv, self)
   /* initialize data */
   c->resource    = resource;
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
+  c->keys        = rb_ary_new();
 
   /* make the reclaim proc.  this is kinda ghetto */
   method = rb_funcall(self, id_method, 1, ID2SYM(id_reclaim));
@@ -218,7 +246,6 @@ do_add(c, key, value)
 
   /* handle guaranteeing */
   c->live++;
-//  if (c->guaranteed > 0) {
   if (c->guaranteed > 0 && c->live <= c->guaranteed) {
     guar *g = ALLOC(guar);
     g->object = value;
@@ -230,13 +257,6 @@ do_add(c, key, value)
     else {
       c->ghead = c->gtail = g;
     }
-
-//    if (c->live > c->guaranteed) {
-//      /* take off front */
-//      gtmp     = (guar *)c->ghead;
-//      c->ghead = (guar *)c->ghead->next;
-//      free(gtmp);
-//    }
   }
 }
 
@@ -249,6 +269,7 @@ cache_add(self, key, value)
   LinkageCache *c;
   GetCache(self, c);
   do_add(c, key, value);
+  rb_ary_store(c->keys, RARRAY(c->keys)->len, key);
   return value;
 }
 
@@ -392,6 +413,50 @@ cache_misses(self)
   return INT2FIX(c->misses);
 }
 
+static VALUE
+cache_count(self)
+  VALUE self;
+{
+  LinkageCache *c;
+  GetCache(self, c);
+  return LONG2NUM(RARRAY(c->keys)->len); 
+}
+
+/*
+ *  call-seq:
+ *     cache.keys  -> array
+ *  
+ *  Returns array of keys in the order they were added to the cache.
+ */
+static VALUE
+cache_keys(self)
+  VALUE self;
+{
+  LinkageCache *c;
+  GetCache(self, c);
+  return c->keys;
+}
+
+static VALUE
+cache_aref(self, offset)
+  VALUE self;
+  VALUE offset;
+{
+  LinkageCache *c;
+  GetCache(self, c);
+}
+
+static VALUE
+cache_clear(self)
+  VALUE self;
+{
+  LinkageCache *c;
+  GetCache(self, c);
+
+  do_clear(c);
+  return Qnil;
+}
+
 void
 Init_cache()
 {
@@ -418,5 +483,8 @@ Init_cache()
   rb_define_method(rb_mLinkage_cCache, "fetch", cache_fetch, -2);
   rb_define_method(rb_mLinkage_cCache, "fetches", cache_fetches, 0);
   rb_define_method(rb_mLinkage_cCache, "misses", cache_misses, 0);
+  rb_define_method(rb_mLinkage_cCache, "count", cache_count, 0);
+  rb_define_method(rb_mLinkage_cCache, "keys", cache_keys, 0);
+  rb_define_method(rb_mLinkage_cCache, "clear", cache_clear, 0);
   rb_define_private_method(rb_mLinkage_cCache, "reclaim", cache_reclaim, 1);
 }

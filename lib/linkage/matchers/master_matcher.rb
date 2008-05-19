@@ -4,9 +4,11 @@ module Linkage
       attr_reader :field_list, :matchers, :combining_method, :groups
 
       def initialize(options = {})
-        @field_list = options['field list']   # NOTE: primary key should be first
         @combining_method = options['combining method']
-        @groups = options['groups']
+        @field_list = options['field list']   # NOTE: primary key should be first
+        @groups     = options['groups']
+        @resource   = options['resource']
+        @cache      = options['cache']
         @matchers = []
         @indices  = []
 
@@ -19,30 +21,35 @@ module Linkage
       end
 
       def add_matcher(options)
+        options['index'] = @field_list.index(options['field'])
         case options['type']
         when 'exact'
+          options['resource'] = @resource
           @matchers << ExactMatcher.new(options)
         else
+          options['cache'] = @cache
           @matchers << DefaultMatcher.new(options)
         end
-        @indices << @field_list.index(@matchers.last.field)
       end
 
-      def score(record, candidates)
-        candidates = [candidates] unless candidates[0].is_a?(Array)
-        scores = []
+      def score
+        scores = Array.new(@matchers.length)
         @matchers.each_with_index do |matcher, i|
-          index = @indices[i]
-          scores << matcher.score(record[index], candidates.collect { |c| c[index] })
+          scores[i] = matcher.score
         end
 
-        # combine and group scores
-        scores.transpose.inject_with_index(Hash.new{|h,k| h[k]=[]}) do |hsh, (scores, i)|
-          score = @combine_proc.call(scores)
-          group = @groups.keys.detect { |name| @groups[name].include?(score) }
-          hsh[group] << [record[0], candidates[i][0], score]  if group
-          hsh
+        debugger
+        retval = Hash.new { |h, k| h[k] = [] }
+        ids    = @cache.keys
+        len    = ids.length - 1
+        len.times do |i|
+          (len - i).times do |j|
+            score = @combine_proc.call(scores.collect { |s| s[i][j] })
+            group = @groups.keys.detect { |name| @groups[name].include?(score) }
+            retval[group] << [ids[i], ids[i+j+1], score]  if group
+          end
         end
+        retval
       end
     end
   end
