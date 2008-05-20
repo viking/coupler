@@ -3,8 +3,9 @@ Story: linking records
   I want to link records
   So that I can make a dataset
 
-Scenario: running a scenario
-  When I run the first specification
+Scenario: running scenarios from the first specification
+  Given the first specification
+  When I run the scenarios
   Then it should create the ssn_linkage.csv file
   And each record should match every 10th record with a score of 100 
   And there should be no extra scores

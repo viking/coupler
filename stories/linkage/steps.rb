@@ -1,10 +1,13 @@
 steps_for(:linkage) do
-  When("I run the $name specification") do |name|
-    path = File.join(File.dirname(__FILE__), "files")
-    Linkage::Runner.run(File.join(path, "#{name}.yml"))
+  Given "the $name specification" do |name|
+    @yamlfn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
   end
 
-  Then("it should create the $filename file") do |filename|
+  When "I run the scenarios" do
+    Linkage::Runner.run(@yamlfn)
+  end
+
+  Then "it should create the $filename file" do |filename|
     filename = filename
     File.exist?(filename).should be_true
     @results = Hash.new { |h, k| h[k] = [] }
@@ -16,7 +19,7 @@ steps_for(:linkage) do
     end
   end
 
-  Then("each record should match every $nth record with a score of $score") do |nth, expected_score|
+  Then "each record should match every $nth record with a score of $score" do |nth, expected_score|
     filename = filename
     n = nth.sub(/th$/, "").to_i
     expected_score = expected_score.to_i
@@ -43,7 +46,7 @@ steps_for(:linkage) do
     end
   end
 
-  Then("there should be no extra scores") do
+  Then "there should be no extra scores" do
     @results.keys.inject(0) { |sum, key| sum + @results[key].length }.should == 0
   end
 end

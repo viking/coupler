@@ -5,4 +5,3 @@ require 'fastercsv'
 with_steps_for :linkage do
   run File.dirname(__FILE__) + "/linkage.story"
 end
-
