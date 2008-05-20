@@ -1,4 +1,4 @@
-steps_for(:exact) do
+steps_for(:linkage) do
   When("I run the $name specification") do |name|
     path = File.join(File.dirname(__FILE__), "files")
     Linkage::Runner.run(File.join(path, "#{name}.yml"))

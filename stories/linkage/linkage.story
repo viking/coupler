@@ -1,9 +1,10 @@
-Story: creating records that exactly match
+Story: linking records
   As a researcher
-  I want to link records that exactly match
+  I want to link records
+  So that I can make a dataset
 
 Scenario: running a scenario
-  When I run the exact specification
+  When I run the first specification
   Then it should create the ssn_linkage.csv file
   And each record should match every 10th record with a score of 100 
   And there should be no extra scores
