@@ -38,7 +38,6 @@ module Linkage
           scores[i] = matcher.score
         end
 
-        debugger
         retval = Hash.new { |h, k| h[k] = [] }
         ids    = @cache.keys
         len    = ids.length - 1
