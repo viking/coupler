@@ -115,10 +115,16 @@ module Linkage
       connection.query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v.inspect }.join(", ")})")
     end
 
-    def create_table(name, primary, *columns)
-      key    = primary.split[0]
-      fields = ([primary] + columns + ["PRIMARY KEY (#{key})"]).join(", ")
+    def create_table(name, columns, indices = [])
+      primary = columns.shift
+      key     = primary.split[0]
+      fields  = ([primary] + columns + ["PRIMARY KEY (#{key})"]).join(", ")
       connection.query("CREATE TABLE #{name} (#{fields})")
+
+      indices.each do |column|
+        connection.query("CREATE INDEX #{column}_index ON #{name} (#{column})")
+      end
+
       @table = name
       @primary_key = primary.split(" ")[0]
     end

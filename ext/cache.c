@@ -3,7 +3,7 @@
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
 
 static ID    id_find, id_primary_key, id_select, id_next, id_close, id_reclaim,
-             id_method, id_to_proc, id_define_finalizer;
+             id_method, id_to_proc, id_define_finalizer, id_debug;
 static VALUE sym_columns, sym_conditions;
 
 VALUE rb_mLinkage;
@@ -33,6 +33,7 @@ typedef struct LinkageCache_s {
   VALUE primary_key;
   VALUE reclaim_proc;
   VALUE keys;
+  VALUE logger;
   long  guaranteed;
   long  live;
   long  fetches;
@@ -58,6 +59,7 @@ cache_mark(c)
   rb_gc_mark(c->primary_key);
   rb_gc_mark(c->reclaim_proc);
   rb_gc_mark(c->keys);
+  rb_gc_mark(c->logger);
 
   /* mark values sometimes depending on number of objects */
   g = c->ghead;
@@ -171,6 +173,7 @@ cache_init(argc, argv, self)
   c->resource    = resource;
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
   c->keys        = rb_ary_new();
+  c->logger      = rb_funcall(rb_mLinkage, rb_intern("logger"), 0);
 
   /* make the reclaim proc.  this is kinda ghetto */
   method = rb_funcall(self, id_method, 1, ID2SYM(id_reclaim));
@@ -295,14 +298,19 @@ cache_fetch(self, args)
   LinkageCache *c;
   CacheEntry   *e;
 
+  GetCache(self, c);
+  c->fetches++;
+
+  if ( RTEST(c->logger) ) {
+    tmp = rb_str_plus(rb_str_new2("Fetching from cache:"), rb_inspect(args));
+    rb_funcall(c->logger, id_debug, 1, tmp);
+  }
+
   /* this may or may not be a bad idea.  it might be possible to rewrite
    * this function so that there's no new memory being allocated during the
    * fetching process.  i don't know that there's a huge advantage to doing
    * that, however. */
   gc_was_off = rb_gc_disable();
-
-  GetCache(self, c);
-  c->fetches++;
 
   /* determine how to return result */
   retval = Qnil;
@@ -468,6 +476,7 @@ Init_cache()
   id_reclaim     = rb_intern("reclaim");
   id_method      = rb_intern("method");
   id_to_proc     = rb_intern("to_proc");
+  id_debug       = rb_intern("debug");
   id_define_finalizer = rb_intern("define_finalizer");
   sym_columns    = ID2SYM(rb_intern("columns"));
   sym_conditions = ID2SYM(rb_intern("conditions"));

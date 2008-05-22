@@ -11,13 +11,18 @@ module Linkage
         @cache      = options['cache']
         @matchers = []
         @indices  = []
-
-        @combine_proc = case @combining_method
-          when "mean"
-            lambda { |scores| scores.mean }
-          when "sum"
-            lambda { |scores| scores.sum }
-        end
+        
+        instance_eval(ERB.new(<<-EOF).result(binding), __FILE__, __LINE__)
+          def get_group(score)
+            case score
+          <% @groups.each_pair do |name, range| %>
+            when <%= range %> then "<%= name %>"
+          <% end %>
+            else
+              nil
+            end
+          end
+        EOF
       end
 
       def add_matcher(options)
@@ -35,19 +40,23 @@ module Linkage
       def score
         scores = Array.new(@matchers.length)
         @matchers.each_with_index do |matcher, i|
+          Linkage.logger.debug "Running matcher for #{matcher.field}"   if Linkage.logger
           scores[i] = matcher.score
         end
 
+        Linkage.logger.debug "Combining scores"   if Linkage.logger
         retval = Hash.new { |h, k| h[k] = [] }
         ids    = @cache.keys
         len    = ids.length - 1
         len.times do |i|
+          Linkage.logger.debug "Scoring: #{i}"   if Linkage.logger && i % 1000 == 0
           (len - i).times do |j|
-            score = @combine_proc.call(scores.collect { |s| s[i][j] })
-            group = @groups.keys.detect { |name| @groups[name].include?(score) }
+            score = scores.collect { |s| s[i][j] }.send(@combining_method)
+            group = get_group(score) 
             retval[group] << [ids[i], ids[i+j+1], score]  if group
           end
         end
+        Linkage.logger.debug "Done combining"   if Linkage.logger
         retval
       end
     end

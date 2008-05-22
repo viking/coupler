@@ -175,7 +175,10 @@ describe Linkage::Scenario do
           [4, "123456789", @date_2],
           nil
         )
-        @resource.stub!(:select_num).with(an_instance_of(Fixnum), "ID", "MomSSN", "MomDOB", an_instance_of(Hash)).and_return(@all_result)
+        @resource.stub!(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 1000, :offset => 0
+        }).and_return(@all_result)
         @resource.stub!(:count).and_return(4)
 
         # transformer setup
@@ -207,9 +210,15 @@ describe Linkage::Scenario do
       end
 
       it "should select all needed fields for 1000 records at a time" do
-        @resource.should_receive(:select_num).with(1000, "ID", "MomSSN", "MomDOB", :offset => 0).and_return(@all_result)
+        @resource.should_receive(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 1000, :offset => 0
+        }).and_return(@all_result)
         s = create_scenario
         s.run
+      end
+
+      it "should order by id when selecting" do
       end
 
       it "should select only certain records if given blocking conditions" do
@@ -233,7 +242,10 @@ describe Linkage::Scenario do
           }]
         })
 
-        @resource.should_receive(:select_num).with(1000, 'ID', 'MomSSN', 'MomDOB', 'junk', :offset => 0).and_return(@all_result)
+        @resource.should_receive(:select).with({
+          :columns => %w{ID MomSSN MomDOB junk}, :order => "ID",
+          :limit => 1000, :offset => 0
+        }).and_return(@all_result)
         s.run
       end
 
@@ -250,8 +262,25 @@ describe Linkage::Scenario do
       end
 
       it "should setup the scratch resource with all needed columns" do
-        @scratch.should_receive(:create_table).with("birth_all", "ID int", "MomSSN varchar(255)", "MomDOB varchar(255)")
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(255)", "MomDOB varchar(255)"], [])
         s = create_scenario
+        s.run
+      end
+
+      it "should create an index on the scratch resource for exact matchers" do
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(255)", "MomDOB varchar(255)"], ["MomDOB"])
+        s = create_scenario({
+          'matchers' => [
+            {
+              'field'   => 'MomSSN',
+              'formula' => '(!a.nil? && a == b) ? 100 : 0'
+            },
+            {
+              'field'   => 'MomDOB',
+              'type'    => 'exact' 
+            }
+          ]
+        })
         s.run
       end
 
@@ -286,8 +315,14 @@ describe Linkage::Scenario do
         result2.stub!(:next).and_return([3, "123456789", @date_1], [4, "123456789", @date_2], nil)
 
         @resource.stub!(:count).and_return(2000)
-        @resource.should_receive(:select_num).with(1000, "ID", "MomSSN", "MomDOB", :offset => 0).and_return(result1)
-        @resource.should_receive(:select_num).with(1000, "ID", "MomSSN", "MomDOB", :offset => 1000).and_return(result2)
+        @resource.should_receive(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 1000, :offset => 0
+        }).and_return(result1)
+        @resource.should_receive(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 1000, :offset => 1000
+        }).and_return(result2)
         do_run
       end
 

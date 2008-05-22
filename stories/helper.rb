@@ -7,3 +7,7 @@ require 'erb'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'linkage'
+
+logger = Logger.new(File.dirname(__FILE__) + "/../log/story.log")
+logger.level = Logger::DEBUG
+Linkage.logger = logger 

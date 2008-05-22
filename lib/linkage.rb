@@ -2,6 +2,7 @@ require 'csv'
 require 'logger'
 require 'yaml'
 require 'enumerator'
+require 'erb'
 
 require 'rubygems'
 require 'sqlite3'

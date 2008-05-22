@@ -24,12 +24,25 @@ module Linkage
         ids.close
 
         # calculate scores
-        records = @resource.select(:columns => [key, @field], :order => @field)
         len     = count - 1
         scores  = Array.new(len) { |i| Array.new(len-i, @false_score) }
         last    = nil 
         group   = []
-        while (row = records.next)
+        offset  = 0
+
+        records = @resource.select(:columns => [key, @field], :order => @field, :limit => 1000)
+        while (true)
+          row = records.next
+          if row.nil?
+            records.close
+            offset += 1000
+            records = @resource.select({
+              :columns => [key, @field], :order => @field,
+              :limit => 1000, :offset => offset
+            })
+            row = records.next
+            break if row.nil?
+          end
           id, value = row
           i = indices[id]
           if value == last && !value.nil?

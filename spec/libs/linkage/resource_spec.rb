@@ -82,17 +82,22 @@ shared_examples_for "any adapter" do
   describe "#create_table" do
     it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
       @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
-      @resource.create_table("foo", "ID int", "MomSSN varchar(9)")
+      @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"])
     end
 
     it "should set table attribute" do
-      @resource.create_table("foo", "ID int")
+      @resource.create_table("foo", ["ID int"])
       @resource.table.should == "foo"
     end
 
     it "should set primary key attribute" do
-      @resource.create_table("foo", "huge_id int")
+      @resource.create_table("foo", ["huge_id int"])
       @resource.primary_key.should == "huge_id"
+    end
+
+    it "should create indices on specified columns" do
+      @conn.should_receive(:query).with(%{CREATE INDEX ssn_index ON foo (ssn)})
+      @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
   end
 

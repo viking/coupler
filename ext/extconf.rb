@@ -1,4 +1,4 @@
 require 'mkmf'
 
-$CFLAGS = "-g3"
+#$CFLAGS = "-g3"
 create_makefile 'cache'

@@ -39,7 +39,11 @@ module Linkage
         'cache'            => @cache,
         'resource'         => @scratch
       })
-      options['matchers'].each { |m| @master_matcher.add_matcher(m) }
+      @index_on = []
+      options['matchers'].each do |m|
+        @index_on << m['field']   if m['type'] == 'exact'
+        @master_matcher.add_matcher(m)
+      end
 
       # grab transformers
       @transformations = []
@@ -89,12 +93,13 @@ module Linkage
           end
         end
         @scratch.drop_table(resource.table)
-        @scratch.create_table(resource.table, *schema)
+        @scratch.create_table(resource.table, schema, @index_on)
         @scratch.insert(@field_list, record)
         @cache.add(record_id, record)
         ids = [record_id]
 
         # transform all records first
+        Linkage.logger.info("Scenario (#{name}): Transforming records")  if Linkage.logger
         while(true) do
           record = record_set.next
           if record.nil?
@@ -116,6 +121,7 @@ module Linkage
         end
 
         # now match!
+        Linkage.logger.info("Scenario (#{name}): Matching records")  if Linkage.logger
         retval = @master_matcher.score
 
         if DEBUG
@@ -138,8 +144,10 @@ module Linkage
               :offset => @record_offset
             })
           else
-            args = @field_list + [{:offset => @record_offset}]  # this is a bit silly
-            set = resource.select_num(limit, *args)
+            set = resource.select({
+              :columns => @field_list, :limit => limit,
+              :offset => @record_offset, :order => resource.primary_key
+            })
           end
           @num_records   -= 1000 
           @record_offset += 1000
