@@ -3,16 +3,13 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 describe Linkage::Runner do
   describe ".run" do
     before(:each) do
-      @results = {
-        'awesome' => [ [1, 2, 100] ],
-        'sweet'   => [ [1, 3, 85]  ],
-        'groovy'  => [ [1, 4, 60]  ]
-      }
-      @filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/family.yml")
-      @resource = stub(Linkage::Resource)
+      @results = stub(Linkage::Scores)
+      @results.stub!(:each).and_yield(1, 2, 100).and_yield(1, 3, 85).and_yield(1, 4, 60)
+      @filename    = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/family.yml")
+      @resource    = stub(Linkage::Resource)
       @transformer = stub(Linkage::Transformer)
-      @scenario_1 = stub(Linkage::Scenario, :name => "uno", :run => @results)
-      @scenario_2 = stub(Linkage::Scenario, :name => "dos", :run => @results)
+      @scenario_1  = stub(Linkage::Scenario, :name => "uno", :run => @results)
+      @scenario_2  = stub(Linkage::Scenario, :name => "dos", :run => @results)
       Linkage::Resource.stub!(:new).and_return(@resource)
       Linkage::Transformer.stub!(:new).and_return(@transformer)
       Linkage::Scenario.stub!(:new).twice.and_return(@scenario_1, @scenario_2)
@@ -54,18 +51,16 @@ describe Linkage::Runner do
     end
 
     it "should output results in the result file" do
-      expected = @results.inject([]) do |arr, (group, scores)|
-        arr + scores.collect do |score|
-          score.collect { |s| s.to_s } + [group]
-        end
-      end
-      expected.unshift(%w{id1 id2 score group})
+      expected = [
+        %w{id1 id2 score},
+        %w{1 2 100},
+        %w{1 3 85},
+        %w{1 4 60}
+      ]
       do_run
 
-      CSV::Reader.parse(File.open("uno.csv", "r")) do |row|
-        row.collect! { |c| c ? c.data : nil }
-        expected.should include(row)
-        expected.delete(row)
+      FasterCSV.foreach("uno.csv") do |row|
+        row.should == expected.shift
       end
       expected.should be_empty
     end

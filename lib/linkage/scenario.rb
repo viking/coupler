@@ -7,6 +7,7 @@ module Linkage
       @name = options['name']
       @type = options['type']
       @guarantee = options['guarantee']
+      @range = (r = options['scoring']['range']).is_a?(Range) ? r : eval(r)
 
       case @type
       when 'self-join'
@@ -25,17 +26,11 @@ module Linkage
       @field_list = (matcher_fields + transformer_fields).uniq
       @field_list.unshift(@resources[0].primary_key)  if @type == 'self-join'
 
-      # grab scoring groups
-      @groups = options['scoring']['groups'].inject({}) do |hsh, (key, value)|
-        hsh[key] = value.is_a?(Range) ? value : eval(value)
-        hsh
-      end
-
       # setup matchers
       @master_matcher = Linkage::Matchers::MasterMatcher.new({
         'field list'       => @field_list,
         'combining method' => options['scoring']['combining method'],
-        'groups'           => @groups,
+        'range'            => @range,
         'cache'            => @cache,
         'resource'         => @scratch
       })
@@ -96,7 +91,6 @@ module Linkage
         @scratch.create_table(resource.table, schema, @index_on)
         @scratch.insert(@field_list, record)
         @cache.add(record_id, record)
-        ids = [record_id]
 
         # transform all records first
         Linkage.logger.info("Scenario (#{name}): Transforming records")  if Linkage.logger
@@ -117,7 +111,6 @@ module Linkage
           record_id = record[0]
           @scratch.insert(@field_list, record)  # save in database
           @cache.add(record_id, record)         # save in cache
-          ids << record_id
         end
 
         # now match!

@@ -1,37 +1,24 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-shared_examples_for "any combining method" do
-  it "should call score for each matcher" do
-    @exact.should_receive(:score).and_return([[80, 60, 0], [30, 70], [25]])
-    @default.should_receive(:score).and_return([[0, 100, 0], [100, 0], [100]])
-    @master.score
-  end
-
-  it "should grab keys from the cache" do
-    @cache.should_receive(:keys).and_return([1, 2, 3, 4])
-    @master.score
-  end
-end
-
 describe Linkage::Matchers::MasterMatcher do
   before(:each) do
-    @exact    = stub("exact matcher", :field => 'bar')
-    @default  = stub("default matcher", :field => 'foo')
-    @cache    = stub(Linkage::Cache)
+    @exact    = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
+    @default  = stub("default matcher", :field => 'foo', :score => nil)
+    @cache    = stub(Linkage::Cache, :keys => [1,2,3,4])
     @resource = stub(Linkage::Resource)
+    @scores   = stub(Linkage::Scores)
+    @recorder = stub(Linkage::Scores::Recorder)
+    @scores.stub!(:record).and_yield(@recorder)
     Linkage::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
     Linkage::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
+    Linkage::Scores.stub!(:new).and_return(@scores)
   end
 
   def create_master(options = {})
     Linkage::Matchers::MasterMatcher.new({
       'field list' => %w{id foo bar},
       'combining method' => "mean",
-      'groups' => {
-        'good'  => 40..75,
-        'great' => 75..90,
-        'leet'  => 91..100
-      },
+      'range'    => 40..100,
       'cache'    => @cache,
       'resource' => @resource
     }.merge(options))
@@ -59,13 +46,9 @@ describe Linkage::Matchers::MasterMatcher do
     m.combining_method.should == "mean"
   end
 
-  it "should have groups" do
+  it "should have a range" do
     m = create_master
-    m.groups.should == {
-      'good'  => 40..75,
-      'great' => 75..90,
-      'leet'  => 91..100
-    }
+    m.range.should == (40..100)
   end
 
   describe "#add_matcher" do
@@ -75,7 +58,7 @@ describe Linkage::Matchers::MasterMatcher do
 
     it "should create an exact matcher" do
       Linkage::Matchers::ExactMatcher.should_receive(:new).with({
-        'field' => 'bar', 'type' => 'exact', 'index' => 2,
+        'field' => 'bar', 'type' => 'exact',
         'resource' => @resource
       }).and_return(@exact)
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
@@ -92,46 +75,28 @@ describe Linkage::Matchers::MasterMatcher do
 
   describe "#score" do
     before(:each) do
-      @exact.stub!(:score).with.and_return([[80, 60, 0], [30, 70], [25]])
-      @default.stub!(:score).with.and_return([[0, 100, 0], [100, 0], [100]])
-      @cache.stub!(:keys).and_return([1, 2, 3, 4])
+      @master = create_master_with_matchers
     end
 
-    describe "when using the mean combining method" do
-      before(:each) do
-        @master = create_master_with_matchers
-      end
-
-      it_should_behave_like "any combining method"
-
-      it "should return a hash of group arrays" do
-        @master.score.should == {
-          'good'  => [[1, 2, 40], [2, 3, 65], [3, 4, 62]],
-          'great' => [[1, 3, 80]]
-        }
-      end
+    it "should create a scores object" do
+      Linkage::Scores.should_receive(:new).with({
+        'combining method' => "mean",
+        'range' => 40..100,
+        'keys'  => [1, 2, 3, 4],
+        'num'   => 2,
+        'defaults' => [0, 0]
+      }).and_return(@scores)
+      @master.score
     end
 
-    describe "when using the sum combining method" do
-      before(:each) do
-        @master = create_master_with_matchers({
-          'combining method' => 'sum',
-          'groups' => {
-            'good'  =>  80..150,
-            'great' => 151..180,
-            'leet'  => 181..200
-          }
-        })
-      end
+    it "should call score for each matcher" do
+      @exact.should_receive(:score).with(@recorder)
+      @default.should_receive(:score).with(@recorder)
+      @master.score
+    end
 
-      it_should_behave_like "any combining method"
-
-      it "should return an array of sums" do
-        @master.score.should == {
-          'good'  => [[1, 2, 80], [2, 3, 130], [3, 4, 125]],
-          'great' => [[1, 3, 160]]
-        }
-      end
+    it "should return a scores object" do
+      @master.score.should == @scores
     end
   end
 end

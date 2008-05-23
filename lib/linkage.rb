@@ -1,4 +1,4 @@
-require 'csv'
+require 'fastercsv'
 require 'logger'
 require 'yaml'
 require 'enumerator'
@@ -17,6 +17,7 @@ require 'linkage/scenario'
 require 'linkage/runner'
 require 'linkage/cache'
 require 'linkage/matchers'
+require 'linkage/scores'
 
 module Linkage
   @@logger = nil

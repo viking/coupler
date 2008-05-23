@@ -34,8 +34,7 @@ scenarios:
       - field: ssn
         type: exact
     scoring:
-      groups:
-        perfect: '100..100'
+      range: 100..100
       combining method: "mean"
   - name: ssn_dob_linkage
     type: self-join
@@ -52,7 +51,5 @@ scenarios:
         type: exact
         scores: [40, 60]
     scoring:
-      groups:
-        perfect: 160..160
-        good: 60..140 
+      range: 60..160
       combining method: sum

@@ -291,6 +291,7 @@ cache_fetch(self, args)
   VALUE self;
   VALUE args;
 {
+  /* FIXME: add start/length support so that I don't have to do cache.fetch(cache.keys[10..20]) */
   VALUE retval, key, qry, res, select_args, key_str, inspect_ary, tmp, gc_was_off, ptr;
   unsigned long i, entry_l;
   int str_len;

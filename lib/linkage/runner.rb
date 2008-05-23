@@ -26,21 +26,15 @@ module Linkage
     end
 
     def run_scenarios
-      disabled = GC.disable  if ENV['GC_OFF']
       @scenarios.each do |scenario|
-        result  = scenario.run
-        outfile = File.open("#{scenario.name}.csv", "w")
-        csv     = CSV::Writer.create(outfile)
-        csv << %w{id1 id2 score group}
-        result.each_pair do |group, scores|
-          scores.each do |(id1, id2, score)|
-            csv << [id1, id2, score, group]
+        result = scenario.run
+        FasterCSV.open("#{scenario.name}.csv", "w") do |csv|
+          csv << %w{id1 id2 score}
+          result.each do |id1, id2, score|
+            csv << [id1, id2, score]
           end
         end
-        csv.close
-        outfile.close
       end
-      GC.enable   unless disabled
     end
   end
 end

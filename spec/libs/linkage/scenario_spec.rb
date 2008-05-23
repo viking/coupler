@@ -36,10 +36,7 @@ describe Linkage::Scenario do
         ],
         'scoring' => {
           'combining method' => 'mean',
-          'groups' => {
-            'confident' => '100..100',
-            'unsure'    => '50..99'
-          }
+          'range' => '50..100'
         }
       }.merge(options)
       Linkage::Scenario.new(options)
@@ -122,10 +119,7 @@ describe Linkage::Scenario do
       Linkage::Matchers::MasterMatcher.should_receive(:new).with({
         'field list' => %w{ID MomSSN MomDOB},
         'combining method' => 'mean',
-        'groups' => {
-          'confident' => 100..100,
-          'unsure'    => 50..99
-        },
+        'range' => 50..100,
         'cache' => @cache,
         'resource' => @scratch
       }).and_return(@matcher)

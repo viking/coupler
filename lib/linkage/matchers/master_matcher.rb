@@ -1,63 +1,47 @@
 module Linkage
   module Matchers
     class MasterMatcher
-      attr_reader :field_list, :matchers, :combining_method, :groups
+      attr_reader :field_list, :matchers, :combining_method, :range
 
       def initialize(options = {})
         @combining_method = options['combining method']
         @field_list = options['field list']   # NOTE: primary key should be first
-        @groups     = options['groups']
+        @range      = options['range']
         @resource   = options['resource']
         @cache      = options['cache']
-        @matchers = []
-        @indices  = []
-        
-        instance_eval(ERB.new(<<-EOF).result(binding), __FILE__, __LINE__)
-          def get_group(score)
-            case score
-          <% @groups.each_pair do |name, range| %>
-            when <%= range %> then "<%= name %>"
-          <% end %>
-            else
-              nil
-            end
-          end
-        EOF
+        @matchers   = []
+        @indices    = []
+        @defaults   = []
       end
 
       def add_matcher(options)
-        options['index'] = @field_list.index(options['field'])
         case options['type']
         when 'exact'
           options['resource'] = @resource
           @matchers << ExactMatcher.new(options)
+          @defaults << @matchers.last.false_score
         else
+          options['index'] = @field_list.index(options['field'])
           options['cache'] = @cache
           @matchers << DefaultMatcher.new(options)
+          @defaults << 0
         end
       end
 
       def score
-        scores = Array.new(@matchers.length)
-        @matchers.each_with_index do |matcher, i|
-          Linkage.logger.debug "Running matcher for #{matcher.field}"   if Linkage.logger
-          scores[i] = matcher.score
+        scores = Linkage::Scores.new({
+          'combining method' => @combining_method,
+          'range' => @range,
+          'keys'  => @cache.keys,
+          'num'   => @matchers.length,
+          'defaults' => @defaults 
+        })
+
+        @matchers.each do |matcher|
+          scores.record { |r| matcher.score(r) }
         end
 
-        Linkage.logger.debug "Combining scores"   if Linkage.logger
-        retval = Hash.new { |h, k| h[k] = [] }
-        ids    = @cache.keys
-        len    = ids.length - 1
-        len.times do |i|
-          Linkage.logger.debug "Scoring: #{i}"   if Linkage.logger && i % 1000 == 0
-          (len - i).times do |j|
-            score = scores.collect { |s| s[i][j] }.send(@combining_method)
-            group = get_group(score) 
-            retval[group] << [ids[i], ids[i+j+1], score]  if group
-          end
-        end
-        Linkage.logger.debug "Done combining"   if Linkage.logger
-        retval
+        scores
       end
     end
   end
