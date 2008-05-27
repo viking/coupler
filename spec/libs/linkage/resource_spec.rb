@@ -74,14 +74,14 @@ shared_examples_for "any adapter" do
 
   describe "#insert" do
     it "should run: INSERT INTO birth_all (...) VALUES(...)" do
-      @conn.should_receive(:query).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")})
+      @conn.should_receive(@query_method).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")}).and_return(@query_result)
       @resource.insert(%w{ID MomSSN}, [123, "123456789"])
     end
   end
 
   describe "#create_table" do
     it "should run: CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))" do
-      @conn.should_receive(:query).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))})
+      @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int, MomSSN varchar(9), PRIMARY KEY (ID))}).and_return(@query_result)
       @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"])
     end
 
@@ -96,14 +96,14 @@ shared_examples_for "any adapter" do
     end
 
     it "should create indices on specified columns" do
-      @conn.should_receive(:query).with(%{CREATE INDEX ssn_index ON foo (ssn)})
+      @conn.should_receive(@query_method).with(%{CREATE INDEX ssn_index ON foo (ssn)}).and_return(@query_result)
       @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
   end
 
   describe "#drop_table" do
     it "should run: DROP TABLE foo" do
-      @conn.should_receive(:query).with(%{DROP TABLE foo})
+      @conn.should_receive(@query_method).with(%{DROP TABLE foo}).and_return(@query_result)
       @resource.drop_table("foo")
     end
 

@@ -1,4 +1,3 @@
-require 'fastercsv'
 require 'logger'
 require 'yaml'
 require 'enumerator'
@@ -8,6 +7,7 @@ require 'rubygems'
 require 'sqlite3'
 require 'mysql'
 require 'ruby-debug'
+require 'fastercsv'
 
 require 'progress'
 require 'linkage/extensions'

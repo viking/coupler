@@ -107,26 +107,22 @@ module Linkage
       order      = options[:order]      ? " ORDER BY #{options[:order]}" : ""
       
       qry = "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
-      Linkage.logger.debug("Resource (#{name}): #{qry}")  if Linkage.logger
-      result = case @configuration['adapter']
-               when 'sqlite3' then connection.query(qry)
-               when 'mysql'   then connection.prepare(qry).execute
-               end
+      result = run_and_log_query(qry)
       ResultSet.new(result, @configuration['adapter'])
     end
 
     def insert(columns, values)
-      connection.query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v.inspect }.join(", ")})")
+      run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v.inspect }.join(", ")})")
     end
 
     def create_table(name, columns, indices = [])
       primary = columns.shift
       key     = primary.split[0]
       fields  = ([primary] + columns + ["PRIMARY KEY (#{key})"]).join(", ")
-      connection.query("CREATE TABLE #{name} (#{fields})")
+      run_and_log_query("CREATE TABLE #{name} (#{fields})")
 
       indices.each do |column|
-        connection.query("CREATE INDEX #{column}_index ON #{name} (#{column})")
+        run_and_log_query("CREATE INDEX #{column}_index ON #{name} (#{column})")
       end
 
       @table = name
@@ -135,11 +131,22 @@ module Linkage
 
     def drop_table(name)
       begin
-        connection.query("DROP TABLE #{name}")
+        run_and_log_query("DROP TABLE #{name}")
         true
       rescue SQLite3::SQLException, Mysql::Error
         false
       end
     end
+
+    private
+      def run_and_log_query(query)
+        Linkage.logger.debug("Resource (#{name}): #{query}")  if Linkage.logger
+        case @configuration['adapter']
+        when 'sqlite3'
+          connection.query(query)
+        when 'mysql'
+          connection.prepare(query).execute
+        end
+      end
   end
 end
