@@ -43,6 +43,11 @@ shared_examples_for "any adapter" do
       @conn.should_receive(@query_method).with("SELECT * FROM birth_all LIMIT 10 OFFSET 10").and_return(@query_result)
       @resource.select_num(10, :offset => 10)
     end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): SELECT MomSSN, MomDOB FROM birth_all LIMIT 10")
+      @resource.select_num(10, "MomSSN", "MomDOB")
+    end
   end
 
   describe "#select_one" do
@@ -70,11 +75,21 @@ shared_examples_for "any adapter" do
       @result_set.should_receive(:close)
       @resource.select_one(123)
     end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): SELECT ID, MomSSN FROM birth_all WHERE ID = 123 LIMIT 1")
+      @resource.select_one(123, "ID", "MomSSN")
+    end
   end
 
   describe "#insert" do
     it "should run: INSERT INTO birth_all (...) VALUES(...)" do
       @conn.should_receive(@query_method).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, "123456789")}).and_return(@query_result)
+      @resource.insert(%w{ID MomSSN}, [123, "123456789"])
+    end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): INSERT INTO birth_all (ID, MomSSN) VALUES(123, \"123456789\")")
       @resource.insert(%w{ID MomSSN}, [123, "123456789"])
     end
   end
@@ -99,6 +114,12 @@ shared_examples_for "any adapter" do
       @conn.should_receive(@query_method).with(%{CREATE INDEX ssn_index ON foo (ssn)}).and_return(@query_result)
       @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE TABLE foo (id int, ssn varchar(9), bar datetime, PRIMARY KEY (id))")
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE INDEX ssn_index ON foo (ssn)")
+      @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
+    end
   end
 
   describe "#drop_table" do
@@ -110,6 +131,11 @@ shared_examples_for "any adapter" do
     it "should catch exception it table doesn't exist" do
       @conn.stub!(:query).with(%{DROP TABLE foo}).and_raise(@error_klass)
       lambda { @resource.drop_table("foo") }.should_not raise_error
+    end
+
+    it "should log its query" do
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): DROP TABLE foo")
+      @resource.drop_table("foo")
     end
   end
 
