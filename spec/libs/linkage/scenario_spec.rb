@@ -212,16 +212,13 @@ describe Linkage::Scenario do
         s.run
       end
 
-      it "should order by id when selecting" do
-      end
-
-      it "should select only certain records if given blocking conditions" do
+      it "should select only certain records if given conditions" do
         @resource.should_receive(:select).with({
           :columns => %w{ID MomSSN MomDOB}, :limit => 1000,
           :conditions => "MomSSN NOT IN ('111111111', '222222222')",
-          :offset => 0
+          :offset => 0, :order => 'ID'
         }).and_return(@all_result)
-        do_run('blocking' => "MomSSN NOT IN ('111111111', '222222222')")
+        do_run('conditions' => "MomSSN NOT IN ('111111111', '222222222')")
       end
 
       it "should select fields needed to transform a matcher field" do

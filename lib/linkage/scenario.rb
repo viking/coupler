@@ -52,7 +52,7 @@ module Linkage
       end if options['transformations']
 
       # other
-      @conditions = options['blocking']
+      @conditions = options['conditions']
       @limit = options['limit']  # undocumented and untested, wee!
     end
 
@@ -134,7 +134,7 @@ module Linkage
           if @conditions
             set = resource.select({
               :limit => limit, :columns => @field_list, :conditions => @conditions,
-              :offset => @record_offset
+              :offset => @record_offset, :order => resource.primary_key
             })
           else
             set = resource.select({
