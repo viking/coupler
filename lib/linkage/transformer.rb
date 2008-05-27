@@ -95,5 +95,9 @@ module Linkage
     def self.find(name)
       @@transformers[name]
     end
+
+    def self.reset
+      @@transformers.clear
+    end
   end
 end

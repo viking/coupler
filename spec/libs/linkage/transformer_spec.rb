@@ -197,6 +197,16 @@ describe Linkage::Transformer do
     end
   end
 
+  describe ".reset" do
+    it "should remove all transformers" do
+      xf1 = create_xformer
+      xf2 = create_xformer
+      Linkage::Transformer.reset
+      Linkage::Transformer.find(xf1.name).should be_nil
+      Linkage::Transformer.find(xf2.name).should be_nil
+    end
+  end
+
   describe "#transform" do
     it "should require a Hash as an argument" do
       xf = create_xformer('parameters' => ['x'])

@@ -1,5 +1,5 @@
 resources:
-  - name: mysql_test
+  - name: linkage_test
     connection:
       adapter: sqlite3
       database: db/test.sqlite3
@@ -7,7 +7,7 @@ resources:
     table: 
       name: records
       primary_key: ID
-  - name: mysql_scratch
+  - name: scratch
     connection:
       adapter: mysql
       host: localhost
@@ -16,7 +16,7 @@ resources:
       password: scratch
 
 transformers:
-  - name: another_ssn_filter
+  - name: ssn_filter
     parameters:
       - name: ssn
         regexp: "(\d)\1{8}"
@@ -24,12 +24,12 @@ transformers:
     default: "ssn"
 
 scenarios:
-  - name: ssn_linkage2
+  - name: ssn_linkage
     type: self-join
     resource: linkage_test
     transformations:
       - name: ssn
-        transformer: another_ssn_filter
+        transformer: ssn_filter
         arguments:
           ssn: ssn
     matchers:
@@ -38,7 +38,7 @@ scenarios:
     scoring:
       range: 100..100
       combining method: "mean"
-  - name: ssn_dob_linkage2
+  - name: ssn_dob_linkage
     type: self-join
     resource: linkage_test
     transformations:

@@ -1,6 +1,8 @@
 steps_for(:linkage) do
   Given "the $name specification" do |name|
     @yamlfn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
+    Linkage::Resource.reset
+    Linkage::Transformer.reset
   end
 
   When "I run the scenarios" do

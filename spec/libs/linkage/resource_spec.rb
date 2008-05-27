@@ -266,6 +266,17 @@ describe Linkage::Resource do
       Linkage::Resource.find(r.name).should == r
     end
   end
+  
+  describe ".reset" do
+    it "should remove all resources" do
+      r1 = create_resource
+      r2 = create_resource
+      Linkage::Resource.reset
+      Linkage::Resource.find(r1.name).should be_nil
+      Linkage::Resource.find(r2.name).should be_nil
+    end
+  end
+
 end
 
 describe Linkage::Resource::ResultSet do

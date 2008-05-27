@@ -34,6 +34,10 @@ module Linkage
       @@resources[name]
     end
 
+    def self.reset
+      @@resources.clear
+    end
+
     attr_reader :name, :configuration, :table, :primary_key
 
     def initialize(options = {})
