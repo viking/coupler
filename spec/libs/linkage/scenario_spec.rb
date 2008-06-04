@@ -16,12 +16,12 @@ describe Linkage::Scenario do
           {
             'name'        => 'MomSSN',
             'transformer' => 'ssn_filter',
-            'arguments'   => {'ssn' => 'MomSSN'}
+            'arguments'   => {'ssn' => 'MomSSN'},
           },
           {
             'name'        => 'MomDOB',
             'transformer' => 'date_changer',
-            'arguments'   => {'date' => 'MomDOB'}
+            'arguments'   => {'date' => 'MomDOB'},
           }
         ],
         'matchers' => [
@@ -47,9 +47,12 @@ describe Linkage::Scenario do
       @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID")
       @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil)
       @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil)
-      @ssn_filter   = stub("ssn transformer")
-      @date_changer = stub("date transformer")
+      @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
+      @date_changer = stub("date transformer", :data_type => 'varchar(10)')
       @matcher      = stub(Linkage::Matchers::MasterMatcher, :add_matcher => nil)
+      @resource.stub!(:columns).with(%w{ID MomSSN MomDOB}).and_return({
+        "ID" => "int", "MomSSN" => "varchar(9)", "MomDOB" => "date"
+      })
       Linkage::Resource.stub!(:find).with('birth').and_return(@resource)
       Linkage::Resource.stub!(:find).with('scratch').and_return(@scratch)
       Linkage::Transformer.stub!(:find).with('ssn_filter').and_return(@ssn_filter)
@@ -66,6 +69,10 @@ describe Linkage::Scenario do
     it "should have a type of self-join" do
       s = create_scenario
       s.type.should == 'self-join'
+    end
+
+    it "should raise an error for an unsupported type" do
+      lambda { create_scenario('type' => 'awesome') }.should raise_error("unsupported scenario type")
     end
 
     it "should find the ssn_filter transformer" do
@@ -146,6 +153,13 @@ describe Linkage::Scenario do
       create_scenario('guarantee' => 1000)
     end
 
+    it "should grab field info from the resource" do
+      @resource.should_receive(:columns).with(%w{ID MomSSN MomDOB}).and_return({
+        "ID" => "int", "MomSSN" => "varchar(9)", "MomDOB" => "date"
+      })
+      create_scenario
+    end
+
     describe "#run" do
       
       def do_run(options = {})
@@ -223,21 +237,35 @@ describe Linkage::Scenario do
 
       it "should select fields needed to transform a matcher field" do
         # stub transformer
-        convoy = stub("optimus prime is called convoy in japan")
+        convoy = stub("optimus prime is called convoy in japan", :data_type => 'varchar(255)')
         convoy.stub!(:transform).and_return("optimus-prime")
         Linkage::Transformer.stub!(:find).with('convoy').and_return(convoy)
+        @resource.should_receive(:select).with({
+          :columns => %w{ID MomDOB junk MomSSN},
+          :order => "ID", :limit => 1000, :offset => 0
+        }).and_return(@all_result)
         s = create_scenario({
           'transformations' => [{
             'name' => 'MomSSN', 'transformer' => 'convoy',
             'arguments' => { 'ssn' => 'MomSSN', 'stuff' => 'junk' }
           }]
         })
-
-        @resource.should_receive(:select).with({
-          :columns => %w{ID MomSSN MomDOB junk}, :order => "ID",
-          :limit => 1000, :offset => 0
-        }).and_return(@all_result)
         s.run
+      end
+
+      it "should not select fields not in the database" do
+        baka = stub("some crappy transformer", :data_type => 'varchar(255)', :transform => "baka")
+        Linkage::Transformer.stub!(:find).with('baka').and_return(baka)
+        @resource.should_receive(:select).with({
+          :columns => %w{ID MomSSN MomDOB},
+          :order => "ID", :limit => 1000, :offset => 0
+        }).and_return(@all_result)
+        create_scenario({
+          'transformations' => [{
+            'name' => 'saru', 'transformer' => 'baka',
+            'arguments' => { 'ssn' => 'MomSSN', 'dob' => 'MomDOB' }
+          }]
+        }).run
       end
 
       it "should transform the first record" do
@@ -253,26 +281,56 @@ describe Linkage::Scenario do
       end
 
       it "should setup the scratch resource with all needed columns" do
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(255)", "MomDOB varchar(255)"], [])
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
+        s = create_scenario
+        s.run
+      end
+
+      it "should setup the scratch resource properly even if the first record has nil values" do
+        @all_result.stub!(:next).and_return(
+          [1, "999999999", @date_2],
+          [2, "123456789", @date_1],
+          [3, "123456789", @date_1],
+          [4, "123456789", @date_2],
+          nil
+        )
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
         s = create_scenario
         s.run
       end
 
       it "should create an index on the scratch resource for exact matchers" do
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(255)", "MomDOB varchar(255)"], ["MomDOB"])
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], ["MomDOB"])
         s = create_scenario({
           'matchers' => [
-            {
-              'field'   => 'MomSSN',
-              'formula' => '(!a.nil? && a == b) ? 100 : 0'
-            },
-            {
-              'field'   => 'MomDOB',
-              'type'    => 'exact' 
-            }
+            {'field'   => 'MomSSN', 'formula' => '(!a.nil? && a == b) ? 100 : 0'},
+            {'field'   => 'MomDOB', 'type'    => 'exact'}
           ]
         })
         s.run
+      end
+
+      it "should not add fields to scratch that aren't needed" do
+        baka = stub("some crappy transformer", :data_type => 'varchar(1337)', :transform => "123456789")
+        Linkage::Transformer.stub!(:find).with('baka').and_return(baka)
+        @all_result.stub!(:next).and_return(
+          [1, @date_1, "foo", "bar"],
+          [2, @date_2, "foo", "bar"],
+          [3, @date_1, "foo", "bar"],
+          [4, @date_2, "foo", "bar"],
+          nil
+        )
+        @resource.stub!(:select).with({
+          :columns => %w{ID MomDOB some_field some_other_field},
+          :order => "ID", :limit => 1000, :offset => 0
+        }).and_return(@all_result)
+        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(1337)", "MomDOB date"], [])
+        create_scenario({
+          'transformations' => [{
+            'name' => 'MomSSN', 'transformer' => 'baka',
+            'arguments' => { 'field1' => 'some_field', 'field2' => 'some_other_field' }
+          }]
+        }).run
       end
 
       it "should transform the other records" do

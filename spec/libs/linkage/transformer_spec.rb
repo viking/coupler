@@ -12,6 +12,7 @@ describe Linkage::Transformer do
     options = {
       'formula' => 'x * 5',
       'default' => 'x',
+      'type'    => 'integer'
     }.merge(options)
     options['name'] = xformer_name  unless options['name']
 
@@ -31,6 +32,11 @@ describe Linkage::Transformer do
   it "should have a default" do
     xf = create_xformer
     xf.default.should == 'x'
+  end
+
+  it "should have a data type" do
+    xf = create_xformer
+    xf.data_type.should == 'integer'
   end
 
   it "should not raise an error without a default" do

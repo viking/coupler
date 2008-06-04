@@ -112,7 +112,7 @@ module Linkage
     end
 
     def insert(columns, values)
-      run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v.inspect }.join(", ")})")
+      run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")})")
     end
 
     def create_table(name, columns, indices = [])
@@ -135,6 +135,23 @@ module Linkage
         true
       rescue SQLite3::SQLException, Mysql::Error
         false
+      end
+    end
+
+    def columns(names)
+      case @configuration['adapter']
+      when 'sqlite3'
+        connection.table_info(@table).inject({}) do |hsh, info|
+          hsh[info['name']] = info['type']  if names.include?(info['name'])
+          hsh
+        end
+      when 'mysql'
+        res = run_and_log_query("SHOW FIELDS FROM #{@table} WHERE Field IN (#{names.collect { |f| f.inspect }.join(", ")})")
+        hsh = {}
+        while (row = res.fetch)
+          hsh[row[0]] = row[1]
+        end
+        hsh
       end
     end
 

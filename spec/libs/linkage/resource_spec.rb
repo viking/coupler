@@ -92,6 +92,11 @@ shared_examples_for "any adapter" do
       @logger.should_receive(:debug).with("Resource (#{@resource.name}): INSERT INTO birth_all (ID, MomSSN) VALUES(123, \"123456789\")")
       @resource.insert(%w{ID MomSSN}, [123, "123456789"])
     end
+
+    it "should substitue NULL for nil" do
+      @conn.should_receive(@query_method).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, NULL)}).and_return(@query_result)
+      @resource.insert(%w{ID MomSSN}, [123, nil])
+    end
   end
 
   describe "#create_table" do
@@ -162,6 +167,15 @@ shared_examples_for "any adapter" do
       @resource.select(:columns => ["ID", "*"])
     end
   end
+
+  describe "#columns" do
+    it "should return a hash of types" do
+      @resource.columns(%w{ssn dob}).should == {
+        "ssn" => "varchar(9)",
+        "dob" => "varchar(10)"
+      }
+    end
+  end
 end
 
 describe Linkage::Resource do
@@ -228,6 +242,11 @@ describe Linkage::Resource do
       @query_result = stub(SQLite3::ResultSet)
       @error_klass = SQLite3::SQLException
       @conn = stub("sqlite3 connection", :query => @query_result, :type_translation= => nil)
+      @conn.stub!(:table_info).and_return([
+        {"name"=>"ID", "type"=>"int", "pk"=>"1", "notnull"=>"0", "cid"=>"0", "dflt_value"=>nil},
+        {"name"=>"ssn", "type"=>"varchar(9)", "pk"=>"0", "notnull"=>"0", "cid"=>"1", "dflt_value"=>nil},
+        {"name"=>"dob", "type"=>"varchar(10)", "pk"=>"0", "notnull"=>"0", "cid"=>"2", "dflt_value"=>nil}
+      ])
       SQLite3::Database.stub!(:new).and_return(@conn)
       @resource = create_resource
     end
@@ -248,12 +267,23 @@ describe Linkage::Resource do
       @conn.should_receive(:type_translation=).with(true)
       @resource.connection
     end
+
+    describe "#columns" do
+      it "should call table_info on the adapter" do
+        @conn.should_receive(:table_info).with("birth_all").and_return([
+          {"name"=>"ID", "type"=>"int", "pk"=>"1", "notnull"=>"0", "cid"=>"0", "dflt_value"=>nil},
+          {"name"=>"ssn", "type"=>"varchar(9)", "pk"=>"0", "notnull"=>"0", "cid"=>"1", "dflt_value"=>nil},
+          {"name"=>"dob", "type"=>"varchar(10)", "pk"=>"0", "notnull"=>"0", "cid"=>"2", "dflt_value"=>nil}
+        ])
+        @resource.columns(%w{ssn dob})
+      end
+    end
   end
 
   describe "when connection is using mysql adapter" do
 
     before(:each) do
-      @set = stub(Mysql::Result)
+      @set = stub(Mysql::Result, :fetch => [])
       @query_method = :prepare
       @query_result = stub(Mysql::Stmt)
       @query_result.stub!(:execute).and_return(@query_result)
@@ -269,6 +299,13 @@ describe Linkage::Resource do
           'database' => 'foo'
         }
       })
+
+      # for describe
+      @query_result.stub!(:fetch).and_return(
+        ["ssn", "varchar(9)", "YES", "", nil, ""],
+        ["dob", "varchar(10)", "YES", "", nil, ""],
+        nil
+      )
     end
     
     it_should_behave_like "any adapter"
@@ -282,6 +319,18 @@ describe Linkage::Resource do
       it "should execute the statement" do
         @query_result.should_receive(:execute)
         @resource.select_all
+      end
+    end
+
+    describe "#columns" do
+      it "should run: SHOW FIELDS FROM birth_all WHERE Field IN ('ssn', 'dob')" do
+        @conn.should_receive(@query_method).with("SHOW FIELDS FROM birth_all WHERE Field IN (\"ssn\", \"dob\")").and_return(@query_result)
+        @resource.columns(%w{ssn dob})
+      end
+      
+      it "should log its query" do
+        @logger.should_receive(:debug).with("Resource (#{@resource.name}): SHOW FIELDS FROM birth_all WHERE Field IN (\"ssn\", \"dob\")")
+        @resource.columns(%w{ssn dob})
       end
     end
   end

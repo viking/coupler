@@ -11,20 +11,41 @@ module Linkage
 
       case @type
       when 'self-join'
-        @resources = [Linkage::Resource.find(options['resource'])]
-        raise "can't find resource '#{options['resource']}'"   unless @resources[0]
+        @resource = Linkage::Resource.find(options['resource'])
+        raise "can't find resource '#{options['resource']}'"   unless @resource
+        @primary_key = @resource.primary_key
+      else
+        raise "unsupported scenario type"
       end
       @scratch = Linkage::Resource.find('scratch')
       @cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
 
-      # grab list of fields
-      matcher_fields     = options['matchers'].collect { |m| m['field'] }
-      transformer_fields = if options['transformations']
-        then options['transformations'].collect { |t| t['arguments'].values }.flatten
-        else []
-      end
-      @field_list = (matcher_fields + transformer_fields).uniq
-      @field_list.unshift(@resources[0].primary_key)  if @type == 'self-join'
+      # grab fields and transformers
+      # NOTE: matcher fields can either be real database columns or the resulting field of
+      #       a transformation (which can be named the same thing as the real database
+      #       column).  because of that, transformer field types override those in the
+      #       actual database.  i only care about field types that actually end up in the
+      #       scratch database, so i'm not collecting types from the transformer
+      #       arguments.
+      matcher_fields   = options['matchers'].collect { |m| m['field'] }
+      @resource_fields = [@primary_key] + matcher_fields.dup   # fields i need to pull from the main resource
+      @field_list      = [@primary_key] + matcher_fields.dup   # fields that will end up in scratch
+      @field_info      = @resource.columns(@field_list)
+      @transformations = {}
+      options['transformations'].each do |info|
+        name, tname = info.values_at('name', 'transformer')
+        next unless matcher_fields.include?(name)
+
+        # adjust resource fields accordingly
+        @resource_fields.delete(name)
+        @resource_fields.push(*info['arguments'].values)
+
+        t = Linkage::Transformer.find(tname)
+        raise "can't find transformer '#{tname}'"  unless t
+        @field_info[name] = t.data_type
+        info['transformer'] = t
+        @transformations[name] = info
+      end if options['transformations']
 
       # setup matchers
       @master_matcher = Linkage::Matchers::MasterMatcher.new({
@@ -40,17 +61,6 @@ module Linkage
         @master_matcher.add_matcher(m)
       end
 
-      # grab transformers
-      @transformations = []
-      options['transformations'].each do |info|
-        next  unless matcher_fields.include?(info['name'])
-
-        t = Linkage::Transformer.find(info['transformer'])
-        raise "can't find transformer '#{info['transformer']}'"  unless t
-        info['transformer'] = t
-        @transformations << info
-      end if options['transformations']
-
       # other
       @conditions = options['conditions']
       @limit = options['limit']  # undocumented and untested, wee!
@@ -62,35 +72,19 @@ module Linkage
 
       case @type
       when 'self-join'
-        resource = @resources[0]
-        primary_key = resource.primary_key
-
         # select records
-        @num_records   = @limit ? @limit : resource.count.to_i
+        @num_records   = @limit ? @limit : @resource.count.to_i
         @record_offset = 0
         progress = Progress.new(@num_records)   if DEBUG
-        record_set = grab_records(resource)
-
-        # grab first record and do transformations so that we know how
-        # to setup the scratch database
-        record = transform(record_set.next)
-        record_id = record[0]
+        record_set = grab_records
 
         # setup scratch database
         schema = []
-        @field_list.each_with_index do |field, i|
-          case record[i]
-          when Fixnum, Bignum
-            schema << "#{field} int"
-          when String
-            schema << "#{field} varchar(255)"
-          else
-          end
+        @field_list.each do |field|
+          schema << "#{field} #{@field_info[field]}"
         end
-        @scratch.drop_table(resource.table)
-        @scratch.create_table(resource.table, schema, @index_on)
-        @scratch.insert(@field_list, record)
-        @cache.add(record_id, record)
+        @scratch.drop_table(@resource.table)
+        @scratch.create_table(@resource.table, schema, @index_on)
 
         # transform all records first
         Linkage.logger.info("Scenario (#{name}): Transforming records")  if Linkage.logger
@@ -99,7 +93,7 @@ module Linkage
           if record.nil?
             # grab next set of records, or quit
             record_set.close
-            record_set = grab_records(resource)
+            record_set = grab_records
             if record_set 
               record = record_set.next
             else
@@ -128,18 +122,18 @@ module Linkage
     end
 
     private
-      def grab_records(resource)
+      def grab_records
         if @num_records > 0 
           limit = @limit && @limit < 1000 ? @limit : 1000
           if @conditions
-            set = resource.select({
-              :limit => limit, :columns => @field_list, :conditions => @conditions,
-              :offset => @record_offset, :order => resource.primary_key
+            set = @resource.select({
+              :limit => limit, :columns => @resource_fields, :conditions => @conditions,
+              :offset => @record_offset, :order => @primary_key
             })
           else
-            set = resource.select({
-              :columns => @field_list, :limit => limit,
-              :offset => @record_offset, :order => resource.primary_key
+            set = @resource.select({
+              :columns => @resource_fields, :limit => limit,
+              :offset => @record_offset, :order => @primary_key
             })
           end
           @num_records   -= 1000 
@@ -149,18 +143,21 @@ module Linkage
         nil
       end
 
+      # Transform a record, returning an array for the scratch database
       def transform(record)
-        @transformations.each do |info|
-          transformer = info['transformer']
-          field = info['name']
-          args = info['arguments'].inject({}) do |args, (key, val)|
-            index = @field_list.index(val)
-            args[key] = record[index]
-            args
+        @field_list.collect do |field|
+          if (info = @transformations[field])
+            transformer = info['transformer']
+            args = info['arguments'].inject({}) do |args, (key, val)|
+              index = @resource_fields.index(val)
+              args[key] = record[index]
+              args
+            end
+            transformer.transform(args)
+          else
+            record[@resource_fields.index(field)]
           end
-          record[@field_list.index(field)] = transformer.transform(args)
         end
-        record
       end
   end
 end

@@ -17,9 +17,10 @@ transformers:
   - name: ssn_filter
     parameters:
       - name: ssn
-        regexp: "(\d)\1{8}"
+        regexp: "^(\d)\1{8}$"
     formula: "nil"
     default: "ssn"
+    type: "varchar(9)"
 
 scenarios:
   - name: ssn_linkage

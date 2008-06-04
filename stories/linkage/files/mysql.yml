@@ -22,6 +22,7 @@ transformers:
         regexp: "(\d)\1{8}"
     formula: "nil"
     default: "ssn"
+    type: varchar(9)
 
 scenarios:
   - name: ssn_linkage

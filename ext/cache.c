@@ -110,8 +110,6 @@ do_clear(c)
     g = gtmp;
   }
   c->ghead = c->gtail = 0;
-
-  rb_ary_clear(c->keys);
   c->live = 0;
 }
 
@@ -463,6 +461,7 @@ cache_clear(self)
   GetCache(self, c);
 
   do_clear(c);
+  rb_ary_clear(c->keys);
   return Qnil;
 }
 

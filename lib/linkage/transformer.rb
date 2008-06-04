@@ -1,7 +1,7 @@
 module Linkage
   class Transformer
     class Parameter
-      attr_reader :name, :coerce_to, :regexp
+      attr_reader :name, :coerce_to, :regexp, :data_type
 
       def initialize(options)
         @name      = options['name']
@@ -33,12 +33,13 @@ module Linkage
 
     @@transformers = {}
 
-    attr_reader :name, :formula, :parameters, :default
+    attr_reader :name, :formula, :parameters, :default, :data_type
 
     def initialize(options)
       @name       = options['name']
       @formula    = options['formula']
       @default    = options['default']
+      @data_type  = options['type']
       @parameters = []
 
       if @@transformers.keys.include?(@name)

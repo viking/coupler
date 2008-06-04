@@ -10,5 +10,9 @@ dbh.query("CREATE TABLE records (ID int, ssn varchar(9), dob varchar(10), PRIMAR
 1000.times do |i|
   ssn = ssn_pool[i % ssn_pool.length]
   dob = dob_pool[i % dob_pool.length] 
-  dbh.query("INSERT INTO records VALUES(#{i+1}, '#{ssn}', '#{dob}')")
+  if i % 75 == 0
+    ssn = "444444444"
+    dob = nil
+  end
+  dbh.query("INSERT INTO records VALUES(?, ?, ?)", i+1, ssn, dob)
 end
