@@ -124,7 +124,7 @@ module Linkage
     private
       def grab_records
         if @num_records > 0 
-          limit = @limit && @limit < 1000 ? @limit : 1000
+          limit = @limit && @limit < Linkage::NUMBER_PER_FETCH ? @limit : Linkage::NUMBER_PER_FETCH
           if @conditions
             set = @resource.select({
               :limit => limit, :columns => @resource_fields, :conditions => @conditions,
@@ -136,8 +136,8 @@ module Linkage
               :offset => @record_offset, :order => @primary_key
             })
           end
-          @num_records   -= 1000 
-          @record_offset += 1000
+          @num_records   -= NUMBER_PER_FETCH 
+          @record_offset += NUMBER_PER_FETCH
           return set
         end
         nil

@@ -53,8 +53,8 @@ describe Linkage::Matchers::ExactMatcher do
           [2, "bippityboppity"],
           nil
         )
-        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000).and_return(@record_set)
-        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000, :offset => 1000).and_return(@nil_set)
+        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000).and_return(@record_set)
+        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 10000).and_return(@nil_set)
       end
 
       it "should close the record set" do
@@ -68,7 +68,7 @@ describe Linkage::Matchers::ExactMatcher do
       end
 
       it "should select from resource, ordering by field" do
-        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000).and_return(@record_set)
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000).and_return(@record_set)
         @matcher.score(@recorder)
       end
 
@@ -109,14 +109,14 @@ describe Linkage::Matchers::ExactMatcher do
           [2, "bippityboppity"],
           nil
         )
-        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000).and_return(@set1)
-        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000, :offset => 1000).and_return(@set2)
-        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000, :offset => 2000).and_return(@nil_set)
+        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000).and_return(@set1)
+        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 10000).and_return(@set2)
+        @resource.stub!(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 20000).and_return(@nil_set)
       end
 
-      it "should select 1000 records at a time" do
-        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000).and_return(@set1)
-        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 1000, :offset => 1000).and_return(@set2)
+      it "should select 10000 records at a time" do
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000).and_return(@set1)
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 10000).and_return(@set2)
         @matcher.score(@recorder)
       end
 

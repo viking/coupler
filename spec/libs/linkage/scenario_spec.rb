@@ -185,7 +185,7 @@ describe Linkage::Scenario do
         )
         @resource.stub!(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 1000, :offset => 0
+          :limit => 10000, :offset => 0
         }).and_return(@all_result)
         @resource.stub!(:count).and_return(4)
 
@@ -217,10 +217,10 @@ describe Linkage::Scenario do
         do_run
       end
 
-      it "should select all needed fields for 1000 records at a time" do
+      it "should select all needed fields for 10000 records at a time" do
         @resource.should_receive(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 1000, :offset => 0
+          :limit => 10000, :offset => 0
         }).and_return(@all_result)
         s = create_scenario
         s.run
@@ -228,7 +228,7 @@ describe Linkage::Scenario do
 
       it "should select only certain records if given conditions" do
         @resource.should_receive(:select).with({
-          :columns => %w{ID MomSSN MomDOB}, :limit => 1000,
+          :columns => %w{ID MomSSN MomDOB}, :limit => 10000,
           :conditions => "MomSSN NOT IN ('111111111', '222222222')",
           :offset => 0, :order => 'ID'
         }).and_return(@all_result)
@@ -242,7 +242,7 @@ describe Linkage::Scenario do
         Linkage::Transformer.stub!(:find).with('convoy').and_return(convoy)
         @resource.should_receive(:select).with({
           :columns => %w{ID MomDOB junk MomSSN},
-          :order => "ID", :limit => 1000, :offset => 0
+          :order => "ID", :limit => 10000, :offset => 0
         }).and_return(@all_result)
         s = create_scenario({
           'transformations' => [{
@@ -258,7 +258,7 @@ describe Linkage::Scenario do
         Linkage::Transformer.stub!(:find).with('baka').and_return(baka)
         @resource.should_receive(:select).with({
           :columns => %w{ID MomSSN MomDOB},
-          :order => "ID", :limit => 1000, :offset => 0
+          :order => "ID", :limit => 10000, :offset => 0
         }).and_return(@all_result)
         create_scenario({
           'transformations' => [{
@@ -322,7 +322,7 @@ describe Linkage::Scenario do
         )
         @resource.stub!(:select).with({
           :columns => %w{ID MomDOB some_field some_other_field},
-          :order => "ID", :limit => 1000, :offset => 0
+          :order => "ID", :limit => 10000, :offset => 0
         }).and_return(@all_result)
         @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(1337)", "MomDOB date"], [])
         create_scenario({
@@ -357,20 +357,20 @@ describe Linkage::Scenario do
         do_run
       end
 
-      it "should select 1000 more records if it runs out" do
-        result1 = stub("first 1000", :close => nil)
+      it "should select 10000 more records if it runs out" do
+        result1 = stub("first 10000", :close => nil)
         result1.stub!(:next).and_return([1, "123456789", @date_1], [2, "999999999", @date_2], nil)
-        result2 = stub("second 1000", :close => nil)
+        result2 = stub("second 10000", :close => nil)
         result2.stub!(:next).and_return([3, "123456789", @date_1], [4, "123456789", @date_2], nil)
 
-        @resource.stub!(:count).and_return(2000)
+        @resource.stub!(:count).and_return(20000)
         @resource.should_receive(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 1000, :offset => 0
+          :limit => 10000, :offset => 0
         }).and_return(result1)
         @resource.should_receive(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 1000, :offset => 1000
+          :limit => 10000, :offset => 10000
         }).and_return(result2)
         do_run
       end

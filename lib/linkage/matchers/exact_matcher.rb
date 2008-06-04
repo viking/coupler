@@ -17,15 +17,15 @@ module Linkage
         last    = nil 
         group   = []
         offset  = 0
-        records = @resource.select(:columns => [key, @field], :order => @field, :limit => 1000)
+        records = @resource.select(:columns => [key, @field], :order => @field, :limit => Linkage::NUMBER_PER_FETCH)
         while (true)
           row = records.next
           if row.nil?
             records.close
-            offset += 1000
+            offset += Linkage::NUMBER_PER_FETCH
             records = @resource.select({
               :columns => [key, @field], :order => @field,
-              :limit => 1000, :offset => offset
+              :limit => Linkage::NUMBER_PER_FETCH, :offset => offset
             })
             row = records.next
             break if row.nil?

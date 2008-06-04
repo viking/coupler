@@ -20,8 +20,9 @@ require 'linkage/matchers'
 require 'linkage/scores'
 
 module Linkage
-  @@logger = nil
+  NUMBER_PER_FETCH = 10000
   
+  @@logger = nil
   def self.logger
     @@logger
   end
