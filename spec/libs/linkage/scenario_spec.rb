@@ -7,8 +7,9 @@ describe Linkage::Scenario do
   end
 
   describe 'when self-joining' do
-    def create_scenario(options = {})
-      options = {
+    def create_scenario(spec = {}, opts = {})
+      options = Linkage::Options.new
+      spec = {
         'name'     => 'family', 
         'type'     => 'self-join',
         'resource' => 'birth',
@@ -38,15 +39,16 @@ describe Linkage::Scenario do
           'combining method' => 'mean',
           'range' => '50..100'
         }
-      }.merge(options)
-      Linkage::Scenario.new(options)
+      }.merge(spec)
+      options.use_existing_scratch = true   if opts[:use_existing_scratch]
+      Linkage::Scenario.new(spec, options)
     end
 
     before(:each) do
       @result       = stub(Linkage::Resource::ResultSet)
       @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID")
-      @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil)
-      @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil)
+      @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
+      @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
       @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
       @date_changer = stub("date transformer", :data_type => 'varchar(10)')
       @matcher      = stub(Linkage::Matchers::MasterMatcher, :add_matcher => nil)
@@ -202,6 +204,49 @@ describe Linkage::Scenario do
         })
       end
 
+      describe "when using an already existing scratch database" do
+        before(:each) do
+          @scenario =  create_scenario({}, {:use_existing_scratch => true})
+        end
+
+        it "should not drop any tables from the scratch database" do
+          @scratch.should_not_receive(:drop_table)
+          @scenario.run
+        end
+
+        it "should not create any tables in the scratch database" do
+          @scratch.should_not_receive(:create_table)
+          @scenario.run
+        end
+
+        it "should not transform any records" do
+          @ssn_filter.should_not_receive(:transform).and_return(nil)
+          @date_change.should_not_receive(:transform).and_return(nil)
+          @scenario.run
+        end
+
+        it "should auto-fill the cache" do
+          @cache.should_receive(:auto_fill!)
+          @scenario.run
+        end
+
+        it "should not auto-fill the cache if all matchers are exact" do
+          @cache.should_not_receive(:auto_fill!)
+          s = create_scenario({
+            'matchers' => [
+              {'field' => 'MomSSN', 'type' => 'exact'},
+              {'field' => 'MomDOB', 'type' => 'exact'}
+            ]
+          }, {:use_existing_scratch => true})
+          s.run
+        end
+
+        it "should set the table and key of the scratch resource" do
+          @scratch.should_receive(:set_table_and_key).with('birth_all', 'ID')
+          @scenario.run
+        end
+      end
+
       it "should clear the cache" do
         @cache.should_receive(:clear)
         do_run
@@ -286,6 +331,8 @@ describe Linkage::Scenario do
         s.run
       end
 
+      it "should name the scratch table something unique, like the name of the scenario"
+
       it "should setup the scratch resource properly even if the first record has nil values" do
         @all_result.stub!(:next).and_return(
           [1, "999999999", @date_2],
@@ -355,6 +402,17 @@ describe Linkage::Scenario do
         @cache.should_receive(:add).with(3, [3, "123456789", "1982-04-15"])
         @cache.should_receive(:add).with(4, [4, "123456789", "1980-09-04"])
         do_run
+      end
+
+      it "should not add records into the cache if all matchers are exact" do
+        @cache.should_not_receive(:add)
+        s = create_scenario({
+          'matchers' => [
+            {'field' => 'MomSSN', 'type' => 'exact'},
+            {'field' => 'MomDOB', 'type' => 'exact'}
+          ]
+        })
+        s.run
       end
 
       it "should select 10000 more records if it runs out" do

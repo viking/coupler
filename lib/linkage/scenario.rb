@@ -3,16 +3,17 @@ module Linkage
     DEBUG = ENV['DEBUG']
 
     attr_reader :name, :type
-    def initialize(options)
-      @name = options['name']
-      @type = options['type']
-      @guarantee = options['guarantee']
-      @range = (r = options['scoring']['range']).is_a?(Range) ? r : eval(r)
+    def initialize(spec, options)
+      @options = options
+      @name = spec['name']
+      @type = spec['type']
+      @guarantee = spec['guarantee']
+      @range = (r = spec['scoring']['range']).is_a?(Range) ? r : eval(r)
 
       case @type
       when 'self-join'
-        @resource = Linkage::Resource.find(options['resource'])
-        raise "can't find resource '#{options['resource']}'"   unless @resource
+        @resource = Linkage::Resource.find(spec['resource'])
+        raise "can't find resource '#{spec['resource']}'"   unless @resource
         @primary_key = @resource.primary_key
       else
         raise "unsupported scenario type"
@@ -27,12 +28,12 @@ module Linkage
       #       actual database.  i only care about field types that actually end up in the
       #       scratch database, so i'm not collecting types from the transformer
       #       arguments.
-      matcher_fields   = options['matchers'].collect { |m| m['field'] }
+      matcher_fields   = spec['matchers'].collect { |m| m['field'] }
       @resource_fields = [@primary_key] + matcher_fields.dup   # fields i need to pull from the main resource
       @field_list      = [@primary_key] + matcher_fields.dup   # fields that will end up in scratch
       @field_info      = @resource.columns(@field_list)
       @transformations = {}
-      options['transformations'].each do |info|
+      spec['transformations'].each do |info|
         name, tname = info.values_at('name', 'transformer')
         next unless matcher_fields.include?(name)
 
@@ -45,25 +46,31 @@ module Linkage
         @field_info[name] = t.data_type
         info['transformer'] = t
         @transformations[name] = info
-      end if options['transformations']
+      end if spec['transformations']
 
       # setup matchers
       @master_matcher = Linkage::Matchers::MasterMatcher.new({
         'field list'       => @field_list,
-        'combining method' => options['scoring']['combining method'],
+        'combining method' => spec['scoring']['combining method'],
         'range'            => @range,
         'cache'            => @cache,
         'resource'         => @scratch
       })
-      @index_on = []
-      options['matchers'].each do |m|
-        @index_on << m['field']   if m['type'] == 'exact'
+      @index_on  = []
+      @use_cache = false
+      spec['matchers'].each do |m|
+        case m['type']
+        when 'exact'
+          @index_on << m['field']
+        else
+          @use_cache = true
+        end
         @master_matcher.add_matcher(m)
       end
 
       # other
-      @conditions = options['conditions']
-      @limit = options['limit']  # undocumented and untested, wee!
+      @conditions = spec['conditions']
+      @limit = spec['limit']  # undocumented and untested, wee!
     end
 
     def run
@@ -79,32 +86,37 @@ module Linkage
         record_set = grab_records
 
         # setup scratch database
-        schema = []
-        @field_list.each do |field|
-          schema << "#{field} #{@field_info[field]}"
-        end
-        @scratch.drop_table(@resource.table)
-        @scratch.create_table(@resource.table, schema, @index_on)
-
-        # transform all records first
-        Linkage.logger.info("Scenario (#{name}): Transforming records")  if Linkage.logger
-        while(true) do
-          record = record_set.next
-          if record.nil?
-            # grab next set of records, or quit
-            record_set.close
-            record_set = grab_records
-            if record_set 
-              record = record_set.next
-            else
-              break
-            end
+        if @options.use_existing_scratch
+          @cache.auto_fill!   if @use_cache
+          @scratch.set_table_and_key(@resource.table, @resource.primary_key)
+        else
+          schema = []
+          @field_list.each do |field|
+            schema << "#{field} #{@field_info[field]}"
           end
+          @scratch.drop_table(@resource.table)
+          @scratch.create_table(@resource.table, schema, @index_on)
 
-          record    = transform(record)
-          record_id = record[0]
-          @scratch.insert(@field_list, record)  # save in database
-          @cache.add(record_id, record)         # save in cache
+          # transform all records
+          Linkage.logger.info("Scenario (#{name}): Transforming records")  if Linkage.logger
+          while(true) do
+            record = record_set.next
+            if record.nil?
+              # grab next set of records, or quit
+              record_set.close
+              record_set = grab_records
+              if record_set 
+                record = record_set.next
+              else
+                break
+              end
+            end
+
+            record    = transform(record)
+            record_id = record[0]
+            @scratch.insert(@field_list, record)  # save in database
+            @cache.add(record_id, record)   if @use_cache
+          end
         end
 
         # now match!

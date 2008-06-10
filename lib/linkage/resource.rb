@@ -129,6 +129,11 @@ module Linkage
       @primary_key = primary.split(" ")[0]
     end
 
+    def set_table_and_key(name, key)
+      @table = name
+      @primary_key = key
+    end
+
     def drop_table(name)
       begin
         run_and_log_query("DROP TABLE #{name}")
@@ -153,6 +158,13 @@ module Linkage
         end
         hsh
       end
+    end
+
+    def keys
+      res = run_and_log_query("SELECT #{@primary_key} FROM #{@table} ORDER BY #{@primary_key}")
+      retval = []
+      res.each { |row| retval << row[0] }
+      retval
     end
 
     private

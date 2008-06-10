@@ -1,12 +1,18 @@
 steps_for(:linkage) do
   Given "the $name specification" do |name|
-    @yamlfn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
+    fn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
+    @options = Linkage::Options.new
+    @options.filenames << fn
     Linkage::Resource.reset
     Linkage::Transformer.reset
   end
 
+  Given "the option of using an existing scratch database" do
+    @options.use_existing_scratch = true
+  end
+
   When "I run the scenarios" do
-    Linkage::Runner.run(@yamlfn)
+    Linkage::Runner.run(@options)
   end
 
   Then "it should create the $filename file" do |filename|

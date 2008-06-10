@@ -2,6 +2,7 @@ require 'logger'
 require 'yaml'
 require 'enumerator'
 require 'erb'
+require 'optparse'
 
 require 'rubygems'
 require 'sqlite3'
@@ -18,6 +19,7 @@ require 'linkage/runner'
 require 'linkage/cache'
 require 'linkage/matchers'
 require 'linkage/scores'
+require 'linkage/options'
 
 module Linkage
   NUMBER_PER_FETCH = 10000

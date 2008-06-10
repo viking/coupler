@@ -1,12 +1,13 @@
 module Linkage
   class Runner 
-    def self.run(filename)
-      spec = YAML.load_file(filename)
-      runner = self.new(spec)
+    def self.run(options)
+      spec = YAML.load_file(options.filenames[0])
+      runner = self.new(spec, options)
       runner.run_scenarios
     end
 
-    def initialize(spec)
+    def initialize(spec, options)
+      @options = options
       scratch = false
       @resources = spec['resources'].collect do |config|
         scratch = true  if config['name'] == 'scratch'
@@ -22,7 +23,7 @@ module Linkage
       else
         @transformers = []
       end
-      @scenarios = spec['scenarios'].collect    { |config| Linkage::Scenario.new(config) }
+      @scenarios = spec['scenarios'].collect { |config| Linkage::Scenario.new(config, @options) }
     end
 
     def run_scenarios

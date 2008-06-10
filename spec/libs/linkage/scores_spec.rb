@@ -103,6 +103,8 @@ describe Linkage::Scores do
       lambda { scores.record { |r| r.add("foo", "bar", 10) } }.should raise_error("bad keys used for adding scores!")
     end
 
+    it "should insert scores into the database"
+
     describe "with different defaults" do
       before(:each) do
         @scores = create_scores('defaults' => [25, 20], 'num' => 2)

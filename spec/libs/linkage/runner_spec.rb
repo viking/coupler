@@ -5,7 +5,8 @@ describe Linkage::Runner do
     before(:each) do
       @results = stub(Linkage::Scores)
       @results.stub!(:each).and_yield(1, 2, 100).and_yield(1, 3, 85).and_yield(1, 4, 60)
-      @filename    = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/family.yml")
+      @options = Linkage::Options.new
+      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/family.yml")]
       @resource    = stub(Linkage::Resource)
       @transformer = stub(Linkage::Transformer)
       @scenario_1  = stub(Linkage::Scenario, :name => "uno", :run => @results)
@@ -16,7 +17,8 @@ describe Linkage::Runner do
     end
 
     def do_run
-      Linkage::Runner.run(@filename)
+      @options.filenames = @filenames
+      Linkage::Runner.run(@options)
     end
 
     it "should accept a filename as an argument" do
@@ -34,7 +36,7 @@ describe Linkage::Runner do
     end
 
     it "should create a new scenario for each item in 'scenarios'" do
-      Linkage::Scenario.should_receive(:new).twice.and_return(@scenario_1, @scenario_2)
+      Linkage::Scenario.should_receive(:new).with(an_instance_of(Hash), @options).twice.and_return(@scenario_1, @scenario_2)
       do_run
     end
 
@@ -66,12 +68,12 @@ describe Linkage::Runner do
     end
 
     it "should require a scratch database resource" do
-      @filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")
+      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
       lambda { do_run }.should raise_error
     end
 
     it "should not freak if there are no transformers" do
-      @filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")
+      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")]
       lambda { do_run }.should_not raise_error
     end
 

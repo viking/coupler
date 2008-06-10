@@ -154,6 +154,51 @@ describe Linkage::Cache do
           @cache.fetch(1)
         end
       end
+    end   # end fetch
+
+    describe "#auto_fill!" do
+      before(:each) do
+        @first_set = stub("first result set", :close => nil)
+        @first_set.stub!(:next).and_return([1, 1, "data 1"], nil)
+        @second_set = stub("second result set", :close => nil)
+        @second_set.stub!(:next).and_return([2, 2, "data 2"], nil)
+
+        @scratch.stub!(:select).with({
+          :columns => ["ID", "*"],
+          :limit => 10000,
+          :offset => 0
+        }).and_return(@first_set)
+        @scratch.stub!(:select).with({
+          :columns => ["ID", "*"],
+          :limit => 10000,
+          :offset => 10000
+        }).and_return(@second_set)
+        @scratch.stub!(:count).and_return(20000)
+      end
+
+      it "should select all records from the database, 10000 at a time" do
+        @scratch.should_receive(:select).with({
+          :columns => ["ID", "*"],
+          :limit => 10000,
+          :offset => 0
+        }).and_return(@first_set)
+        @scratch.should_receive(:select).with({
+          :columns => ["ID", "*"],
+          :limit => 10000,
+          :offset => 10000
+        }).and_return(@second_set)
+        @cache.auto_fill!
+      end
+
+      it "should add all records" do
+        @cache.auto_fill!
+        @cache.fetch(1, 2).should == [[1, "data 1"], [2, "data 2"]]
+      end
+
+      it "should set keys correctly" do
+        @cache.auto_fill!
+        @cache.keys.should == [1, 2]
+      end
     end
   end
 

@@ -32,7 +32,7 @@ module Linkage
         scores = Linkage::Scores.new({
           'combining method' => @combining_method,
           'range' => @range,
-          'keys'  => @cache.keys,
+          'keys'  => @resource.keys,
           'num'   => @matchers.length,
           'defaults' => @defaults 
         })

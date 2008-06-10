@@ -1,6 +1,29 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 shared_examples_for "any adapter" do
+  describe "#set_table_and_key" do
+    it "should set the table and primary key" do
+      @resource.set_table_and_key('foo', 'bar')
+      @resource.table.should == 'foo'
+      @resource.primary_key.should == 'bar'
+    end
+  end
+
+  describe "#keys" do
+    before(:each) do
+      (1..5).inject(@query_result.stub!(:each)) { |m, i| m.and_yield([i]) }
+    end
+
+    it "should select primary key" do
+      @conn.should_receive(@query_method).with("SELECT ID FROM birth_all ORDER BY ID").and_return(@query_result) 
+      @resource.keys
+    end
+
+    it "should return an array of keys" do
+      @resource.keys.should == [1,2,3,4,5]
+    end
+  end
+
   describe "#select_all" do
     it "should select * from birth_all" do
       @conn.should_receive(@query_method).with("SELECT * FROM birth_all").and_return(@query_result)

@@ -1,10 +1,11 @@
 #include "ruby.h"
 #include "st.h"
+#define NUMBER_PER_FETCH 10000
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
 
 static ID    id_find, id_primary_key, id_select, id_next, id_close, id_reclaim,
-             id_method, id_to_proc, id_define_finalizer, id_debug;
-static VALUE sym_columns, sym_conditions;
+             id_method, id_to_proc, id_define_finalizer, id_debug, id_count;
+static VALUE sym_columns, sym_conditions, sym_offset, sym_limit;
 
 VALUE rb_mLinkage;
 VALUE rb_mLinkage_cResource;
@@ -465,6 +466,44 @@ cache_clear(self)
   return Qnil;
 }
 
+static VALUE
+cache_auto_fill(self)
+  VALUE self;
+{
+  VALUE select_args, tmp, key, res; 
+  long count, offset;
+  LinkageCache *c;
+  GetCache(self, c);
+
+  count = rb_funcall(c->resource, id_count, 0);
+
+  /* construct select arguments hash */
+  select_args = rb_hash_new();
+  rb_gc_register_address(&select_args);    /* i don't know if this is good practice or not */
+  rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new("*", 1)));
+  rb_hash_aset(select_args, sym_limit, LONG2NUM(NUMBER_PER_FETCH));
+  rb_hash_aset(select_args, sym_offset, INT2FIX(0));
+
+  /* get the result set */
+  res = rb_funcall(c->resource, id_select, 1, select_args);
+
+  offset = NUMBER_PER_FETCH;
+  while (offset < count) {
+    while ( RTEST(tmp = rb_funcall(res, id_next, 0)) ) {
+      /* key is first element in tmp */
+      key = rb_ary_shift(tmp);
+      do_add(c, key, tmp);
+      rb_ary_store(c->keys, RARRAY(c->keys)->len, key);
+    }
+    rb_hash_aset(select_args, sym_offset, LONG2NUM(offset));
+    offset += NUMBER_PER_FETCH;
+    res = rb_funcall(c->resource, id_select, 1, select_args);
+  }
+
+  rb_gc_unregister_address(&select_args);
+  return Qnil;
+}
+
 void
 Init_cache()
 {
@@ -477,9 +516,12 @@ Init_cache()
   id_method      = rb_intern("method");
   id_to_proc     = rb_intern("to_proc");
   id_debug       = rb_intern("debug");
+  id_count       = rb_intern("count");
   id_define_finalizer = rb_intern("define_finalizer");
   sym_columns    = ID2SYM(rb_intern("columns"));
   sym_conditions = ID2SYM(rb_intern("conditions"));
+  sym_limit      = ID2SYM(rb_intern("limit"));
+  sym_offset     = ID2SYM(rb_intern("offset"));
 
   rb_mObSpace = rb_const_get(rb_cObject, rb_intern("ObjectSpace"));
   rb_mLinkage = rb_const_get(rb_cObject, rb_intern("Linkage"));
@@ -495,5 +537,6 @@ Init_cache()
   rb_define_method(rb_mLinkage_cCache, "count", cache_count, 0);
   rb_define_method(rb_mLinkage_cCache, "keys", cache_keys, 0);
   rb_define_method(rb_mLinkage_cCache, "clear", cache_clear, 0);
+  rb_define_method(rb_mLinkage_cCache, "auto_fill!", cache_auto_fill, 0);
   rb_define_private_method(rb_mLinkage_cCache, "reclaim", cache_reclaim, 1);
 }

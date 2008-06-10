@@ -4,8 +4,8 @@ describe Linkage::Matchers::MasterMatcher do
   before(:each) do
     @exact    = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
     @default  = stub("default matcher", :field => 'foo', :score => nil)
-    @cache    = stub(Linkage::Cache, :keys => [1,2,3,4])
-    @resource = stub(Linkage::Resource)
+    @cache    = stub(Linkage::Cache)
+    @resource = stub(Linkage::Resource, :keys => [1,2,3,4])
     @scores   = stub(Linkage::Scores)
     @recorder = stub(Linkage::Scores::Recorder)
     @scores.stub!(:record).and_yield(@recorder)
@@ -86,6 +86,11 @@ describe Linkage::Matchers::MasterMatcher do
         'num'   => 2,
         'defaults' => [0, 0]
       }).and_return(@scores)
+      @master.score
+    end
+
+    it "should get keys from the resource" do
+      @resource.should_receive(:keys).and_return([1,2,3,4])
       @master.score
     end
 
