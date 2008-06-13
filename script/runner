@@ -7,4 +7,5 @@ logger = Logger.new(File.dirname(__FILE__) + "/../log/runner.log")
 logger.level = Logger::DEBUG
 Linkage.logger = logger 
 
-Linkage::Runner.run(ARGV[0])
+options = Linkage::Options.parse(ARGV)
+Linkage::Runner.run(options)

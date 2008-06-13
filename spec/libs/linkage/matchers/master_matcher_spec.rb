@@ -2,12 +2,13 @@ require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
 describe Linkage::Matchers::MasterMatcher do
   before(:each) do
-    @exact    = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
-    @default  = stub("default matcher", :field => 'foo', :score => nil)
-    @cache    = stub(Linkage::Cache)
-    @resource = stub(Linkage::Resource, :keys => [1,2,3,4])
-    @scores   = stub(Linkage::Scores)
-    @recorder = stub(Linkage::Scores::Recorder)
+    @exact     = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
+    @default   = stub("default matcher", :field => 'foo', :score => nil)
+    @cache     = stub(Linkage::Cache)
+    @resource  = stub(Linkage::Resource, :keys => [1,2,3,4])
+    @scores_db = stub(Linkage::Resource, :drop_table => nil, :create_table => nil)
+    @scores    = stub(Linkage::Scores)
+    @recorder  = stub(Linkage::Scores::Recorder)
     @scores.stub!(:record).and_yield(@recorder)
     Linkage::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
     Linkage::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
@@ -20,7 +21,9 @@ describe Linkage::Matchers::MasterMatcher do
       'combining method' => "mean",
       'range'    => 40..100,
       'cache'    => @cache,
-      'resource' => @resource
+      'resource' => @resource,
+      'scores'   => @scores_db,
+      'name'     => 'foo'
     }.merge(options))
   end
 
@@ -64,7 +67,7 @@ describe Linkage::Matchers::MasterMatcher do
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
     end
 
-    it "should create an default matcher" do
+    it "should create a default matcher" do
       Linkage::Matchers::DefaultMatcher.should_receive(:new).with({
         'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
         'cache' => @cache
@@ -84,7 +87,9 @@ describe Linkage::Matchers::MasterMatcher do
         'range' => 40..100,
         'keys'  => [1, 2, 3, 4],
         'num'   => 2,
-        'defaults' => [0, 0]
+        'defaults' => [0, 0],
+        'resource' => @scores_db,
+        'name' => 'foo'
       }).and_return(@scores)
       @master.score
     end

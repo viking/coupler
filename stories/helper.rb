@@ -9,5 +9,5 @@ $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'linkage'
 
 logger = Logger.new(File.dirname(__FILE__) + "/../log/story.log")
-logger.level = Logger::DEBUG
+logger.level = Logger::INFO
 Linkage.logger = logger 

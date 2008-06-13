@@ -7,7 +7,7 @@ end
 
 dbh = SQLite3::Database.new(File.dirname(__FILE__) + "/test.sqlite3")
 dbh.query("CREATE TABLE records (ID int, ssn varchar(9), dob varchar(10), PRIMARY KEY(ID))")
-1000.times do |i|
+100.times do |i|
   ssn = ssn_pool[i % ssn_pool.length]
   dob = dob_pool[i % dob_pool.length] 
   if i % 75 == 0

@@ -26,7 +26,7 @@ describe Linkage::Runner do
     end
 
     it "should create a new resource for each item in 'resources'" do
-      Linkage::Resource.should_receive(:new).exactly(3).times.and_return(@resource)
+      Linkage::Resource.should_receive(:new).exactly(4).times.and_return(@resource)
       do_run
     end
 
@@ -69,6 +69,11 @@ describe Linkage::Runner do
 
     it "should require a scratch database resource" do
       @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
+      lambda { do_run }.should raise_error
+    end
+
+    it "should require a scores database resource" do
+      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scores.yml")]
       lambda { do_run }.should raise_error
     end
 

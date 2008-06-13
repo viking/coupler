@@ -9,6 +9,8 @@ module Linkage
         @range      = options['range']
         @resource   = options['resource']
         @cache      = options['cache']
+        @name       = options['name']
+        @scores_db  = options['scores']
         @matchers   = []
         @indices    = []
         @defaults   = []
@@ -31,10 +33,12 @@ module Linkage
       def score
         scores = Linkage::Scores.new({
           'combining method' => @combining_method,
-          'range' => @range,
-          'keys'  => @resource.keys,
-          'num'   => @matchers.length,
-          'defaults' => @defaults 
+          'range'    => @range,
+          'keys'     => @resource.keys,
+          'num'      => @matchers.length,
+          'defaults' => @defaults,
+          'resource' => @scores_db,
+          'name'     => @name
         })
 
         @matchers.each do |matcher|

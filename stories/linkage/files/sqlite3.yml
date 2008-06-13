@@ -12,6 +12,11 @@ resources:
       adapter: sqlite3
       database: db/scratch.sqlite3
       timeout: 3000
+  - name: scores
+    connection:
+      adapter: sqlite3
+      database: db/scores.sqlite3
+      timeout: 3000
 
 transformers:
   - name: ssn_filter

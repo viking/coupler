@@ -16,6 +16,11 @@ resources:
       adapter: sqlite3
       database: db/scratch.sql
       timeout: 3000
+  - name: scores
+    connection:
+      adapter: sqlite3
+      database: db/scores.sql
+      timeout: 3000
 
 scenarios:
   - name: family_ssn

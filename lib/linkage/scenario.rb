@@ -19,7 +19,8 @@ module Linkage
         raise "unsupported scenario type"
       end
       @scratch = Linkage::Resource.find('scratch')
-      @cache = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
+      @scores  = Linkage::Resource.find('scores')
+      @cache   = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
 
       # grab fields and transformers
       # NOTE: matcher fields can either be real database columns or the resulting field of
@@ -54,7 +55,9 @@ module Linkage
         'combining method' => spec['scoring']['combining method'],
         'range'            => @range,
         'cache'            => @cache,
-        'resource'         => @scratch
+        'resource'         => @scratch,
+        'scores'           => @scores,
+        'name'             => @name 
       })
       @index_on  = []
       @use_cache = false

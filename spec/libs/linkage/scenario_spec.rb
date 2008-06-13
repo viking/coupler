@@ -48,6 +48,7 @@ describe Linkage::Scenario do
       @result       = stub(Linkage::Resource::ResultSet)
       @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID")
       @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
+      @scores       = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
       @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
       @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
       @date_changer = stub("date transformer", :data_type => 'varchar(10)')
@@ -57,6 +58,7 @@ describe Linkage::Scenario do
       })
       Linkage::Resource.stub!(:find).with('birth').and_return(@resource)
       Linkage::Resource.stub!(:find).with('scratch').and_return(@scratch)
+      Linkage::Resource.stub!(:find).with('scores').and_return(@scores)
       Linkage::Transformer.stub!(:find).with('ssn_filter').and_return(@ssn_filter)
       Linkage::Transformer.stub!(:find).with('date_changer').and_return(@date_changer)
       Linkage::Matchers::MasterMatcher.stub!(:new).and_return(@matcher)
@@ -115,6 +117,11 @@ describe Linkage::Scenario do
       create_scenario
     end
 
+    it "should find the scores resource" do
+      Linkage::Resource.should_receive(:find).with('scores').and_return(@scores)
+      create_scenario
+    end
+
     it "should raise an error if it can't find the resource" do
       Linkage::Resource.stub!(:find).and_return(nil)
       lambda { create_scenario }.should raise_error("can't find resource 'birth'")
@@ -130,7 +137,9 @@ describe Linkage::Scenario do
         'combining method' => 'mean',
         'range' => 50..100,
         'cache' => @cache,
-        'resource' => @scratch
+        'resource' => @scratch,
+        'scores' => @scores,
+        'name' => 'family'
       }).and_return(@matcher)
       create_scenario
     end

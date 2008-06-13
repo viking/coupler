@@ -48,6 +48,7 @@ module Linkage
         @@resources[@name] = self
       end
       @configuration = options['connection']
+      @adapter = @configuration['adapter']
 
       if options['table']
         @table = options['table']['name']
@@ -57,7 +58,7 @@ module Linkage
 
     def connection
       unless @connection
-        case @configuration['adapter']
+        case @adapter
         when 'sqlite3'
           @connection = SQLite3::Database.new( @configuration['database'] )
           @connection.type_translation = true
@@ -96,7 +97,9 @@ module Linkage
       n
     end
 
-    def select(options = {})
+    def select(*args)
+      # FIXME: put WHERE automatically into conditions, dummy.
+      options = args.extract_options!
       columns = options[:columns]
       columns.collect! { |c| c == "*" ? "#{@table}.*" : c }
 
@@ -108,21 +111,84 @@ module Linkage
       
       qry = "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
       result = run_and_log_query(qry)
-      ResultSet.new(result, @configuration['adapter'])
+      retval = ResultSet.new(result, @adapter)
+
+      case args.first
+      when nil, :all
+        retval
+      when :first
+        tmp = retval.next
+        retval.close
+        tmp
+      end
     end
 
-    def insert(columns, values)
-      run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")})")
+    def insert(columns, *values_ary)
+      case @adapter
+      when 'mysql'
+        str = values_ary.collect do |values|
+          values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")
+        end.join("), (")
+        run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{str})", true)
+      when 'sqlite3'
+        values_ary.each do |values|
+          run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")})", true)
+        end
+      end
     end
 
-    def create_table(name, columns, indices = [])
+    def update(key, columns, values)
+      str = columns.inject_with_index([]) do |arr, (col, i)|
+        arr << "#{col} = #{values[i] ? values[i].inspect : 'NULL'}"
+      end.join(", ")
+      run_and_log_query("UPDATE #{@table} SET #{str} WHERE #{@primary_key} = #{key}", true)
+    end
+
+    def update_all(query)
+      run_and_log_query("UPDATE #{@table} SET #{query}", true)
+    end
+
+    def insert_or_update(conditions, columns, values)
+      # FIXME: use select(), dummy.
+      res = run_and_log_query("SELECT #{@primary_key} FROM #{@table} #{conditions} LIMIT 1")
+      key = res.next
+
+      if key
+        update(key, columns, values)
+      else
+        insert(columns, values)
+      end
+    end
+
+    def replace(columns, *values_ary)
+      case @adapter
+      when 'mysql'
+        str = values_ary.collect do |values|
+          values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")
+        end.join("), (")
+        run_and_log_query("REPLACE INTO #{@table} (#{columns.join(", ")}) VALUES(#{str})", true)
+      when 'sqlite3'
+        values_ary.each do |values|
+          run_and_log_query("REPLACE INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")})", true)
+        end
+      end
+    end
+
+    def create_table(name, columns, indices = [], auto_increment = false)
       primary = columns.shift
       key     = primary.split[0]
-      fields  = ([primary] + columns + ["PRIMARY KEY (#{key})"]).join(", ")
-      run_and_log_query("CREATE TABLE #{name} (#{fields})")
+      if auto_increment
+        fields = case @adapter
+          when 'sqlite3' then ["#{primary} PRIMARY KEY"] + columns
+          when 'mysql'   then ["#{primary} NOT NULL AUTO_INCREMENT"] + columns + ["PRIMARY KEY (#{key})"]
+        end
+      else
+        fields = [primary] + columns + ["PRIMARY KEY (#{key})"]
+      end
+      run_and_log_query("CREATE TABLE #{name} (#{fields.join(", ")})", true)
 
       indices.each do |column|
-        run_and_log_query("CREATE INDEX #{column}_index ON #{name} (#{column})")
+        run_and_log_query("CREATE INDEX #{name}_#{column}_idx ON #{name} (#{column})", true)
       end
 
       @table = name
@@ -136,7 +202,7 @@ module Linkage
 
     def drop_table(name)
       begin
-        run_and_log_query("DROP TABLE #{name}")
+        run_and_log_query("DROP TABLE #{name}", true)
         true
       rescue SQLite3::SQLException, Mysql::Error
         false
@@ -144,7 +210,7 @@ module Linkage
     end
 
     def columns(names)
-      case @configuration['adapter']
+      case @adapter
       when 'sqlite3'
         connection.table_info(@table).inject({}) do |hsh, info|
           hsh[info['name']] = info['type']  if names.include?(info['name'])
@@ -156,26 +222,31 @@ module Linkage
         while (row = res.fetch)
           hsh[row[0]] = row[1]
         end
+        res.close
         hsh
       end
     end
 
     def keys
+      # FIXME: use select(), dummy.
       res = run_and_log_query("SELECT #{@primary_key} FROM #{@table} ORDER BY #{@primary_key}")
       retval = []
       res.each { |row| retval << row[0] }
+      res.close
       retval
     end
 
     private
-      def run_and_log_query(query)
+      def run_and_log_query(query, auto_close = false)
         Linkage.logger.debug("Resource (#{name}): #{query}")  if Linkage.logger
-        case @configuration['adapter']
+        res = case @adapter
         when 'sqlite3'
-          connection.query(query)
+          connection.query(query.is_a?(Hash) ? query[:sqlite3] : query)
         when 'mysql'
-          connection.prepare(query).execute
+          connection.prepare(query.is_a?(Hash) ? query[:mysql] : query).execute
         end
+        res.close   if auto_close
+        res
       end
   end
 end

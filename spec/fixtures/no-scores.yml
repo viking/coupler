@@ -11,10 +11,10 @@ resources:
       database: db/death.sql
       timeout: 3000
     table: death_all
-  - name: scores
+  - name: scratch
     connection:
       adapter: sqlite3
-      database: db/scores.sql
+      database: db/scratch.sql
       timeout: 3000
 
 transformers:

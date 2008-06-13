@@ -1,5 +1,29 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
+module ResourceHelper
+  @@num = 1
+  def resource_name
+    @@num += 1
+    "birth_#{@@num-1}"
+  end
+
+  def create_resource(options = {})
+    options = {
+      'connection' => {
+        'adapter'  => 'sqlite3',
+        'database' => 'db/birth.sqlite3',
+        'timeout'  => 3000
+      },
+      'table' => {
+        'name' => 'birth_all',
+        'primary_key' => 'ID'
+      }
+    }.merge(options)
+    options['name'] ||= resource_name
+    Linkage::Resource.new(options)
+  end
+end
+
 shared_examples_for "any adapter" do
   describe "#set_table_and_key" do
     it "should set the table and primary key" do
@@ -21,6 +45,63 @@ shared_examples_for "any adapter" do
 
     it "should return an array of keys" do
       @resource.keys.should == [1,2,3,4,5]
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.keys
+    end
+  end
+
+  describe "#update_all" do
+    it "should run: UPDATE birth_all SET foo = bar" do
+      @conn.should_receive(@query_method).with("UPDATE birth_all SET foo = bar").and_return(@query_result)
+      @resource.update_all("foo = bar")
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.update_all("foo = bar")
+    end
+  end
+
+  describe "#insert_or_update" do
+    before(:each) do
+      @yes_result = stub("yes result")
+      @yes_result.stub!(:next).and_return(1, nil)
+      @yes_result.stub!(:execute).and_return(@yes_result)
+      @no_result = stub("no result", :next => nil)
+      @no_result.stub!(:execute).and_return(@no_result)
+      @conn.stub!(@query_method).with("SELECT ID FROM birth_all WHERE foo = 'bar' LIMIT 1").and_return(@yes_result)
+      @conn.stub!(@query_method).with("SELECT ID FROM birth_all WHERE foo = 'poo' LIMIT 1").and_return(@no_result)
+      @resource.stub!(:insert)
+    end
+
+    it "should select primary key according to conditions" do
+      @conn.should_receive(@query_method).with("SELECT ID FROM birth_all WHERE foo = 'bar' LIMIT 1").and_return(@yes_result)
+      @resource.insert_or_update("WHERE foo = 'bar'", %w{foo bar}, [1, 2])
+    end
+
+    it "should insert if the key wasn't found" do
+      @resource.should_receive(:insert).with(%w{foo bar}, [1, 2])
+      @resource.insert_or_update("WHERE foo = 'poo'", %w{foo bar}, [1, 2])
+    end
+
+    it "should update if the key was found" do
+      @resource.should_receive(:update).with(1, %w{foo bar}, [1, 2])
+      @resource.insert_or_update("WHERE foo = 'bar'", %w{foo bar}, [1, 2])
+    end
+  end
+
+  describe "#replace" do
+    it "should call: REPLACE INTO birth_all (...) VALUES(...)" do
+      @conn.should_receive(@query_method).with("REPLACE INTO birth_all (ID, foo) VALUES(1, \"bar\")").and_return(@query_result)
+      @resource.replace(%w{ID foo}, [1, "bar"])
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.replace(%w{ID foo}, [1, "bar"])
     end
   end
 
@@ -120,6 +201,28 @@ shared_examples_for "any adapter" do
       @conn.should_receive(@query_method).with(%{INSERT INTO birth_all (ID, MomSSN) VALUES(123, NULL)}).and_return(@query_result)
       @resource.insert(%w{ID MomSSN}, [123, nil])
     end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.insert(%w{ID MomSSN}, [123, "123456789"])
+    end
+  end
+
+  describe "#update" do
+    it "should run: UPDATE birth_all SET ... WHERE ..." do
+      @conn.should_receive(@query_method).with(%{UPDATE birth_all SET ID = 123, MomSSN = "123456789" WHERE ID = 345}).and_return(@query_result)
+      @resource.update(345, %w{ID MomSSN}, [123, "123456789"])
+    end
+
+    it "should substitue NULL for nil" do
+      @conn.should_receive(@query_method).with(%{UPDATE birth_all SET ID = 123, MomSSN = NULL WHERE ID = 345}).and_return(@query_result)
+      @resource.update(345, %w{ID MomSSN}, [123, nil])
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.update(345, %w{ID MomSSN}, [123, "123456789"])
+    end
   end
 
   describe "#create_table" do
@@ -139,13 +242,23 @@ shared_examples_for "any adapter" do
     end
 
     it "should create indices on specified columns" do
-      @conn.should_receive(@query_method).with(%{CREATE INDEX ssn_index ON foo (ssn)}).and_return(@query_result)
+      @conn.should_receive(@query_method).with(%{CREATE INDEX foo_ssn_idx ON foo (ssn)}).and_return(@query_result)
       @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
 
     it "should log its query" do
       @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE TABLE foo (id int, ssn varchar(9), bar datetime, PRIMARY KEY (id))")
-      @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE INDEX ssn_index ON foo (ssn)")
+      @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE INDEX foo_ssn_idx ON foo (ssn)")
+      @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"])
+    end
+
+    it "should close the query results for creating indices" do
+      @query_result.should_receive(:close).twice
       @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
   end
@@ -163,6 +276,11 @@ shared_examples_for "any adapter" do
 
     it "should log its query" do
       @logger.should_receive(:debug).with("Resource (#{@resource.name}): DROP TABLE foo")
+      @resource.drop_table("foo")
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
       @resource.drop_table("foo")
     end
   end
@@ -202,28 +320,7 @@ shared_examples_for "any adapter" do
 end
 
 describe Linkage::Resource do
-
-  @@num = 1
-  def resource_name
-    @@num += 1
-    "birth_#{@@num-1}"
-  end
-
-  def create_resource(options = {})
-    options = {
-      'connection' => {
-        'adapter'  => 'sqlite3',
-        'database' => 'db/birth.sqlite3',
-        'timeout'  => 3000
-      },
-      'table' => {
-        'name' => 'birth_all',
-        'primary_key' => 'ID'
-      }
-    }.merge(options)
-    options['name'] ||= resource_name
-    Linkage::Resource.new(options)
-  end
+  include ResourceHelper
 
   before(:each) do
     @result_set = stub("result set", :next => [], :close => nil)
@@ -262,7 +359,7 @@ describe Linkage::Resource do
 
     before(:each) do
       @query_method = :query
-      @query_result = stub(SQLite3::ResultSet)
+      @query_result = stub(SQLite3::ResultSet, :close => nil)
       @error_klass = SQLite3::SQLException
       @conn = stub("sqlite3 connection", :query => @query_result, :type_translation= => nil)
       @conn.stub!(:table_info).and_return([
@@ -301,6 +398,38 @@ describe Linkage::Resource do
         @resource.columns(%w{ssn dob})
       end
     end
+
+    describe "#create_table" do
+      it "should create table with auto increment" do
+        @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int PRIMARY KEY, MomSSN varchar(9))}).and_return(@query_result)
+        @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"], [], true)
+      end
+    end
+
+    describe "#replace" do
+      it "should accept multiple arrays and execute a query for each" do
+        @conn.should_receive(@query_method).with(
+          "REPLACE INTO birth_all (ID, foo) VALUES(1, \"bar\")"
+        ).and_return(@query_result)
+        @conn.should_receive(@query_method).with(
+          "REPLACE INTO birth_all (ID, foo) VALUES(2, \"baz\")"
+        ).and_return(@query_result)
+        @resource.replace(%w{ID foo}, [1, "bar"], [2, "baz"])
+      end
+    end
+
+    describe "#insert" do
+      it "should accept multiple arrays and execute a query for each" do
+        @conn.should_receive(@query_method).with(
+          "INSERT INTO birth_all (ID, foo) VALUES(1, \"bar\")"
+        ).and_return(@query_result)
+        @conn.should_receive(@query_method).with(
+          "INSERT INTO birth_all (ID, foo) VALUES(2, \"baz\")"
+        ).and_return(@query_result)
+        @resource.insert(%w{ID foo}, [1, "bar"], [2, "baz"])
+      end
+    end
+
   end
 
   describe "when connection is using mysql adapter" do
@@ -308,7 +437,7 @@ describe Linkage::Resource do
     before(:each) do
       @set = stub(Mysql::Result, :fetch => [])
       @query_method = :prepare
-      @query_result = stub(Mysql::Stmt)
+      @query_result = stub(Mysql::Stmt, :close => nil)
       @query_result.stub!(:execute).and_return(@query_result)
       @error_klass = Mysql::Error
       @conn = stub("mysql connection", :prepare => @query_result, :query => @set)
@@ -338,6 +467,24 @@ describe Linkage::Resource do
       @resource.connection.should == @conn
     end
 
+    describe "#replace" do
+      it "should accept multiple arrays and execute one query" do
+        @conn.should_receive(@query_method).with(
+          "REPLACE INTO birth_all (ID, foo) VALUES(1, \"bar\"), (2, \"baz\")"
+        ).and_return(@query_result)
+        @resource.replace(%w{ID foo}, [1, "bar"], [2, "baz"])
+      end
+    end
+
+    describe "#insert" do
+      it "should accept multiple arrays and execute one query" do
+        @conn.should_receive(@query_method).with(
+          "INSERT INTO birth_all (ID, foo) VALUES(1, \"bar\"), (2, \"baz\")"
+        ).and_return(@query_result)
+        @resource.insert(%w{ID foo}, [1, "bar"], [2, "baz"])
+      end
+    end
+
     describe "#select_all" do
       it "should execute the statement" do
         @query_result.should_receive(:execute)
@@ -354,6 +501,18 @@ describe Linkage::Resource do
       it "should log its query" do
         @logger.should_receive(:debug).with("Resource (#{@resource.name}): SHOW FIELDS FROM birth_all WHERE Field IN (\"ssn\", \"dob\")")
         @resource.columns(%w{ssn dob})
+      end
+
+      it "should close the query result" do
+        @query_result.should_receive(:close)
+        @resource.columns(%w{ssn dob})
+      end
+    end
+
+    describe "#create_table" do
+      it "should create table with auto increment" do
+        @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int NOT NULL AUTO_INCREMENT, MomSSN varchar(9), PRIMARY KEY (ID))}).and_return(@query_result)
+        @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"], [], true)
       end
     end
   end

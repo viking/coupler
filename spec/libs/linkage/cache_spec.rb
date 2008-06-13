@@ -200,6 +200,10 @@ describe Linkage::Cache do
         @cache.keys.should == [1, 2]
       end
     end
+
+    describe "#update" do
+      it "should update the resource"
+    end
   end
 
 end

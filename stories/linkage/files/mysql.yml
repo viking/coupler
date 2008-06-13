@@ -14,6 +14,13 @@ resources:
       database: scratch 
       username: scratch
       password: scratch
+  - name: scores
+    connection:
+      adapter: mysql
+      host: localhost
+      database: scores 
+      username: scores
+      password: scores
 
 transformers:
   - name: ssn_filter
