@@ -399,11 +399,26 @@ describe Linkage::Scenario do
 
       it "should insert the transformed records into scratch" do
         fields = %w{ID MomSSN MomDOB}
+        @scratch.should_receive(:insert).with(
+          fields, 
+          [1, "123456789", "1982-04-15"], [2, nil, "1980-09-04"],
+          [3, "123456789", "1982-04-15"], [4, "123456789", "1980-09-04"]
+        )
+        s = create_scenario
+        s.run
+      end
+
+      it "should insert at most 10000 records into scratch at a time" do
+        # this is a crappy way to test this
+        scenario = create_scenario
+        buff = scenario.instance_variable_get("@transform_buffer")
+        buff.stub!(:length).and_return(10000)  # hackery
+        fields = %w{ID MomSSN MomDOB}
+        @scratch.should_receive(:insert).with(fields, [1, "123456789", "1982-04-15"])
         @scratch.should_receive(:insert).with(fields, [2, nil, "1980-09-04"])
         @scratch.should_receive(:insert).with(fields, [3, "123456789", "1982-04-15"])
         @scratch.should_receive(:insert).with(fields, [4, "123456789", "1980-09-04"])
-        s = create_scenario
-        s.run
+        scenario.run
       end
 
       it "should add the records into the cache" do

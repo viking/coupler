@@ -48,6 +48,7 @@ module Linkage
         info['transformer'] = t
         @transformations[name] = info
       end if spec['transformations']
+      @transform_buffer = []
 
       # setup matchers
       @master_matcher = Linkage::Matchers::MasterMatcher.new({
@@ -115,12 +116,18 @@ module Linkage
               end
             end
 
-            record    = transform(record)
+            record    = do_transformation(record)
             record_id = record[0]
-            @scratch.insert(@field_list, record)  # save in database
             @cache.add(record_id, record)   if @use_cache
+
+            @transform_buffer << record
+            if @transform_buffer.length == 10000
+              @scratch.insert(@field_list, *@transform_buffer)  # save in database
+              @transform_buffer.clear
+            end
           end
         end
+        @scratch.insert(@field_list, *@transform_buffer)  # save in database
 
         # now match!
         Linkage.logger.info("Scenario (#{name}): Matching records")  if Linkage.logger
@@ -159,7 +166,7 @@ module Linkage
       end
 
       # Transform a record, returning an array for the scratch database
-      def transform(record)
+      def do_transformation(record)
         @field_list.collect do |field|
           if (info = @transformations[field])
             transformer = info['transformer']
