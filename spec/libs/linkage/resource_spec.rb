@@ -435,6 +435,12 @@ describe Linkage::Resource do
       end
     end
 
+    describe "#drop_column" do
+      it "should do nothing" do
+        @conn.should_not_receive(@query_method)
+        @resource.drop_column("foo")
+      end
+    end
   end
 
   describe "when connection is using mysql adapter" do
@@ -518,6 +524,13 @@ describe Linkage::Resource do
       it "should create table with auto increment" do
         @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int NOT NULL AUTO_INCREMENT, MomSSN varchar(9), PRIMARY KEY (ID))}).and_return(@query_result)
         @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"], [], true)
+      end
+    end
+
+    describe "#drop_column" do
+      it "should call: ALTER TABLE birth_all DROP COLUMN foo" do
+        @conn.should_receive(@query_method).with(%{ALTER TABLE birth_all DROP COLUMN foo}).and_return(@query_result)
+        @resource.drop_column("foo")
       end
     end
   end

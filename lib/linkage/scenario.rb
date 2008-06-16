@@ -59,7 +59,7 @@ module Linkage
         'resource'         => @scratch,
         'scores'           => @scores,
         'name'             => @name 
-      })
+      }, @options)
       @index_on  = []
       @use_cache = false
       spec['matchers'].each do |m|
@@ -139,7 +139,14 @@ module Linkage
           puts "Misses:  #{@cache.misses}"
         end
 
-        retval
+        if @options.csv_output
+          FasterCSV.open("#{@name}.csv", "w") do |csv|
+            csv << %w{id1 id2 score}
+            retval.each do |id1, id2, score|
+              csv << [id1, id2, score]
+            end
+          end
+        end
       end
     end
 

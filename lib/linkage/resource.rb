@@ -210,6 +210,14 @@ module Linkage
       end
     end
 
+    def drop_column(name)
+      # i don't feel like supporting this for sqlite3 right now
+      run_and_log_query({
+        :mysql   => "ALTER TABLE #{@table} DROP COLUMN #{name}",
+        :sqlite3 => nil
+      }, true)
+    end
+
     def columns(names)
       case @adapter
       when 'sqlite3'
@@ -241,12 +249,14 @@ module Linkage
       def run_and_log_query(query, auto_close = false)
         Linkage.logger.debug("Resource (#{name}): #{query}")  if Linkage.logger
         res = case @adapter
-        when 'sqlite3'
-          connection.query(query.is_a?(Hash) ? query[:sqlite3] : query)
-        when 'mysql'
-          connection.prepare(query.is_a?(Hash) ? query[:mysql] : query).execute
+          when 'sqlite3'
+            qry = query.is_a?(Hash) ? query[:sqlite3] : query
+            qry ? connection.query(qry) : nil
+          when 'mysql'
+            qry = query.is_a?(Hash) ? query[:mysql] : query
+            qry ? connection.prepare(qry).execute : nil
         end
-        res.close   if auto_close
+        res.close   if res && auto_close
         res
       end
   end

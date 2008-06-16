@@ -21,11 +21,21 @@ describe Linkage::Options do
       do_parse
       @options.use_existing_scratch.should be_true
     end
+
+    it "should set csv_output" do
+      do_parse %w{foo.yml --csv}
+      @options.csv_output.should be_true
+    end
   end
 
   it "should not use_existing_scratch by default" do
     opts = Linkage::Options.new
     opts.use_existing_scratch.should be_false
+  end
+
+  it "should not output csv's by default" do
+    opts = Linkage::Options.new
+    opts.csv_output.should be_false
   end
 
   it "should have no filenames by default" do

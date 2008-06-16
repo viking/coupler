@@ -30,13 +30,7 @@ module Linkage
 
     def run_scenarios
       @scenarios.each do |scenario|
-        result = scenario.run
-        FasterCSV.open("#{scenario.name}.csv", "w") do |csv|
-          csv << %w{id1 id2 score}
-          result.each do |id1, id2, score|
-            csv << [id1, id2, score]
-          end
-        end
+        scenario.run
       end
     end
   end

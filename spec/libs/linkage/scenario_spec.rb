@@ -8,7 +8,6 @@ describe Linkage::Scenario do
 
   describe 'when self-joining' do
     def create_scenario(spec = {}, opts = {})
-      options = Linkage::Options.new
       spec = {
         'name'     => 'family', 
         'type'     => 'self-join',
@@ -40,15 +39,17 @@ describe Linkage::Scenario do
           'range' => '50..100'
         }
       }.merge(spec)
-      options.use_existing_scratch = true   if opts[:use_existing_scratch]
-      Linkage::Scenario.new(spec, options)
+      @options.use_existing_scratch = true   if opts[:use_existing_scratch]
+      @options.csv_output = true             if opts[:csv_output]
+      Linkage::Scenario.new(spec, @options)
     end
 
     before(:each) do
+      @options      = Linkage::Options.new
       @result       = stub(Linkage::Resource::ResultSet)
       @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID")
       @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
-      @scores       = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
+      @scores_db    = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
       @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
       @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
       @date_changer = stub("date transformer", :data_type => 'varchar(10)')
@@ -58,7 +59,7 @@ describe Linkage::Scenario do
       })
       Linkage::Resource.stub!(:find).with('birth').and_return(@resource)
       Linkage::Resource.stub!(:find).with('scratch').and_return(@scratch)
-      Linkage::Resource.stub!(:find).with('scores').and_return(@scores)
+      Linkage::Resource.stub!(:find).with('scores').and_return(@scores_db)
       Linkage::Transformer.stub!(:find).with('ssn_filter').and_return(@ssn_filter)
       Linkage::Transformer.stub!(:find).with('date_changer').and_return(@date_changer)
       Linkage::Matchers::MasterMatcher.stub!(:new).and_return(@matcher)
@@ -118,7 +119,7 @@ describe Linkage::Scenario do
     end
 
     it "should find the scores resource" do
-      Linkage::Resource.should_receive(:find).with('scores').and_return(@scores)
+      Linkage::Resource.should_receive(:find).with('scores').and_return(@scores_db)
       create_scenario
     end
 
@@ -138,9 +139,9 @@ describe Linkage::Scenario do
         'range' => 50..100,
         'cache' => @cache,
         'resource' => @scratch,
-        'scores' => @scores,
+        'scores' => @scores_db,
         'name' => 'family'
-      }).and_return(@matcher)
+      }, @options).and_return(@matcher)
       create_scenario
     end
 
@@ -207,10 +208,11 @@ describe Linkage::Scenario do
         @date_changer.stub!(:transform).with('date' => @date_2).and_return(@date_2.to_s)
 
         # matcher setup
-        @matcher.stub!(:score).and_return({
-          'confident' => [[1, 3, 100]],
-          'unsure'    => [[1, 4, 50], [2, 4, 50], [3, 4, 50]]
-        })
+        @scores = stub(Linkage::Scores)
+        @matcher.stub!(:score).and_return(@scores)
+        [[1, 3, 100], [1, 4, 50], [2, 4, 50], [3, 4, 50]].inject(@scores.stub!(:each)) do |s, ary|
+          s.and_yield(*ary)
+        end
       end
 
       describe "when using an already existing scratch database" do
@@ -253,6 +255,30 @@ describe Linkage::Scenario do
         it "should set the table and key of the scratch resource" do
           @scratch.should_receive(:set_table_and_key).with('birth_all', 'ID')
           @scenario.run
+        end
+      end
+
+      describe "when outputting csv's" do
+        before(:each) do
+          @scenario = create_scenario({}, :csv_output => true)
+        end
+
+        it "should output results in the result file" do
+          expected = [
+            %w{id1 id2 score},
+            %w{1 3 100},
+            %w{1 4 50},
+            %w{2 4 50},
+            %w{3 4 50}
+          ]
+          @scenario.run
+
+          File.exist?("family.csv").should be_true
+          FasterCSV.foreach("family.csv") do |row|
+            row.should == expected.shift
+          end
+          expected.should be_empty
+          File.delete("family.csv")
         end
       end
 
@@ -462,26 +488,9 @@ describe Linkage::Scenario do
       end
 
       it "should match all records" do
-        @matcher.should_receive(:score).with(no_args()).and_return({
-          'confident' => [[1, 3, 100]],
-          'unsure'    => [[1, 4, 50], [2, 4, 50], [3, 4, 50]]
-        })
+        @matcher.should_receive(:score).with(no_args()).and_return(@scores)
         s = create_scenario
         s.run
-      end
-
-      it "should return a group hash of scores" do
-        s = create_scenario
-        s.run.should == {
-          'confident' => [
-            [1, 3, 100]
-          ],
-          'unsure' => [
-            [1, 4, 50],
-            [2, 4, 50],
-            [3, 4, 50]
-          ]
-        }
       end
     end
   end

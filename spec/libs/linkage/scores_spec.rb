@@ -1,7 +1,7 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Scores do
-  def create_scores(options = {})
+  def create_scores(spec = {}, opts = {})
     Linkage::Scores.new({
       'combining method' => 'sum',
       'keys'     => (1..10).to_a,
@@ -10,7 +10,7 @@ describe Linkage::Scores do
       'defaults' => [0, 0, 0, 0, 0],
       'resource' => @resource,
       'name'     => 'foo'
-    }.merge(options))
+    }.merge(spec), @options)
   end
 
   def an_array
@@ -18,11 +18,14 @@ describe Linkage::Scores do
   end
 
   before(:each) do
+    @options = Linkage::Options.new
+    @options.csv_output = true
     @query_result = stub('query result set', :close => nil, :next => nil)
     @resource = stub(Linkage::Resource, {
       :update_all => nil, :insert => nil, :replace => nil,
       :update => nil, :primary_key => "sid", :select => @query_result,
-      :drop_table => nil, :create_table => nil, :replace_scores => nil
+      :drop_table => nil, :create_table => nil, :replace_scores => nil,
+      :drop_column => nil
     })
   end
 
@@ -126,6 +129,13 @@ describe Linkage::Scores do
         end
       end
 
+      it "should close the query result" do
+        @query_result.should_receive(:close)
+        @scores.record do |r|
+          (2..10).each { |i| r.add(1, i, i*10) }
+        end
+      end
+
       it "should replace all scores with correct values" do
         @resource.should_receive(:replace) do |columns, *values|
           columns.should == %w{sid id1 id2 score flags}
@@ -138,6 +148,54 @@ describe Linkage::Scores do
         @scores.record do |r|
           (2..10).each { |i| r.add(1, i, i*10) }
         end
+      end
+    end
+
+    describe "when not using CSV's after the final pass" do
+      before(:each) do
+        @options.csv_output = false
+        @scores = create_scores('num' => 2, 'defaults' => [13, 37])
+        @scores.record { |r| }
+
+        @query_result = stub('query result set', :close => nil)
+        @query_result.stub!(:next).and_return(
+          [1, 20, 2], [3, 40, 4], [5, 60, 2], [7, 80, 4],
+          [9, 100, 2], nil
+        )
+        @resource.stub!(:select).and_return(@query_result)
+      end
+
+      it "should find all scores that aren't finished" do
+        @resource.should_receive(:select).with(:all, {
+          :conditions => "WHERE flags != 6",
+          :columns => %w{sid score flags}
+        }).and_return(@query_result)
+        @scores.record { |r| }
+      end
+
+      it "should close the query result" do
+        @query_result.should_receive(:close)
+        @scores.record { |r| }
+      end
+
+      it "should replace the scores appropriately" do
+        @resource.should_receive(:replace).with(
+          %w{sid score}, [1, 57], [3, 53], [5, 97],
+          [7, 93], [9, 137]
+        )
+        @scores.record { |r| }
+      end
+
+      it "should update all scores by dividing by the total if using means" do
+        scores = create_scores('num' => 2, 'defaults' => [13, 37], 'combining method' => 'mean')
+        scores.record { |r| }
+        @resource.should_receive(:update_all).with("score = score / 2")
+        scores.record { |r| }
+      end
+
+      it "should drop the flags column" do
+        @resource.should_receive(:drop_column).with('flags')
+        @scores.record { |r| }
       end
     end
 

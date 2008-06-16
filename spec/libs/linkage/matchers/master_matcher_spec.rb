@@ -9,13 +9,14 @@ describe Linkage::Matchers::MasterMatcher do
     @scores_db = stub(Linkage::Resource, :drop_table => nil, :create_table => nil)
     @scores    = stub(Linkage::Scores)
     @recorder  = stub(Linkage::Scores::Recorder)
+    @options   = Linkage::Options.new
     @scores.stub!(:record).and_yield(@recorder)
     Linkage::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
     Linkage::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
     Linkage::Scores.stub!(:new).and_return(@scores)
   end
 
-  def create_master(options = {})
+  def create_master(spec = {}, opts = {})
     Linkage::Matchers::MasterMatcher.new({
       'field list' => %w{id foo bar},
       'combining method' => "mean",
@@ -24,7 +25,7 @@ describe Linkage::Matchers::MasterMatcher do
       'resource' => @resource,
       'scores'   => @scores_db,
       'name'     => 'foo'
-    }.merge(options))
+    }.merge(spec), @options)
   end
 
   def create_master_with_matchers(options = {})
@@ -90,7 +91,7 @@ describe Linkage::Matchers::MasterMatcher do
         'defaults' => [0, 0],
         'resource' => @scores_db,
         'name' => 'foo'
-      }).and_return(@scores)
+      }, @options).and_return(@scores)
       @master.score
     end
 

@@ -52,21 +52,6 @@ describe Linkage::Runner do
       File.exist?('dos.csv').should be_true
     end
 
-    it "should output results in the result file" do
-      expected = [
-        %w{id1 id2 score},
-        %w{1 2 100},
-        %w{1 3 85},
-        %w{1 4 60}
-      ]
-      do_run
-
-      FasterCSV.foreach("uno.csv") do |row|
-        row.should == expected.shift
-      end
-      expected.should be_empty
-    end
-
     it "should require a scratch database resource" do
       @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
       lambda { do_run }.should raise_error

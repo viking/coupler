@@ -3,14 +3,15 @@ module Linkage
     class MasterMatcher
       attr_reader :field_list, :matchers, :combining_method, :range
 
-      def initialize(options = {})
-        @combining_method = options['combining method']
-        @field_list = options['field list']   # NOTE: primary key should be first
-        @range      = options['range']
-        @resource   = options['resource']
-        @cache      = options['cache']
-        @name       = options['name']
-        @scores_db  = options['scores']
+      def initialize(spec, options)
+        @options = options
+        @combining_method = spec['combining method']
+        @field_list = spec['field list']   # NOTE: primary key should be first
+        @range      = spec['range']
+        @resource   = spec['resource']
+        @cache      = spec['cache']
+        @name       = spec['name']
+        @scores_db  = spec['scores']
         @matchers   = []
         @indices    = []
         @defaults   = []
@@ -39,7 +40,7 @@ module Linkage
           'defaults' => @defaults,
           'resource' => @scores_db,
           'name'     => @name
-        })
+        }, @options)
 
         @matchers.each do |matcher|
           scores.record { |r| matcher.score(r) }

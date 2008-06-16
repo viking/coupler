@@ -11,14 +11,15 @@ module Linkage
       end
     end
 
-    def initialize(options)
-      @keys     = options['keys']
-      @num      = options['num']   # number of matchers
-      @range    = options['range']
-      @defaults = options['defaults']
-      @resource = options['resource']
-      @name     = options['name']
-      @combining_method = options['combining method']
+    def initialize(spec, options)
+      @options  = options
+      @keys     = spec['keys']
+      @num      = spec['num']   # number of matchers
+      @range    = spec['range']
+      @defaults = spec['defaults']
+      @resource = spec['resource']
+      @name     = spec['name']
+      @combining_method = spec['combining method']
 
       @finalized  = false
       @pass       = 0
@@ -63,7 +64,39 @@ module Linkage
 
       do_score_replacement
 
-      @finalized = true   if @pass == @num
+      if @pass == @num
+        @finalized = true
+
+        if !@options.csv_output
+          # finalize scores in the database
+          finalized_flag = 2 ** (@pass + 1) - 2
+          res = @resource.select(:all, {
+            :conditions => "WHERE flags != #{finalized_flag}",
+            :columns => %w{sid score flags}
+          })
+
+          buffer = []
+          while (record = res.next)
+            flags = record.pop
+            1.upto(@num) { |i| record[1] += @defaults[i-1]  if flags & (2 ** i) == 0 }
+            buffer << record
+
+            if buffer.length == 10000
+              @resource.replace(%w{sid score}, *buffer)
+              buffer.clear
+            end
+          end
+          @resource.replace(%w{sid score}, *buffer)   unless buffer.empty?
+          res.close
+
+          case @combining_method
+          when 'mean'
+            @resource.update_all("score = score / #{@num}")
+          end
+          
+          @resource.drop_column('flags')
+        end
+      end
     end
 
     private
@@ -109,6 +142,7 @@ module Linkage
             @score_buffer[sid][3] += score
             @score_buffer[sid][4] |= flags
           end
+          res.close
           @resource.replace(%w{sid id1 id2 score flags}, *@score_buffer.values)
         end
         @score_buffer.clear
