@@ -404,6 +404,11 @@ describe Linkage::Resource do
         @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int PRIMARY KEY, MomSSN varchar(9))}).and_return(@query_result)
         @resource.create_table("foo", ["ID int", "MomSSN varchar(9)"], [], true)
       end
+
+      it "should convert BIGINT to INT" do
+        @conn.should_receive(@query_method).with(%{CREATE TABLE foo (ID int, ssn varchar(9), PRIMARY KEY (ID))}).and_return(@query_result)
+        @resource.create_table("foo", ["ID bigint", "ssn varchar(9)"])
+      end
     end
 
     describe "#replace" do

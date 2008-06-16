@@ -175,6 +175,7 @@ module Linkage
     end
 
     def create_table(name, columns, indices = [], auto_increment = false)
+      columns.collect! { |c| c.sub("bigint", "int").sub("BIGINT", "INT") }  if @adapter == 'sqlite3'
       primary = columns.shift
       key     = primary.split[0]
       if auto_increment

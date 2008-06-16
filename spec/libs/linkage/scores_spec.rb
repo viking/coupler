@@ -33,7 +33,7 @@ describe Linkage::Scores do
 
   it "should create the scores table" do
     @resource.should_receive(:create_table).with(
-      'foo', ["sid int", "id1 int", "id2 int", "score int", "flags int"]
+      'foo', ["sid bigint", "id1 int", "id2 int", "score int", "flags int"]
     )
     create_scores
   end

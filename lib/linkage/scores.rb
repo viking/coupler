@@ -31,7 +31,7 @@ module Linkage
 
       # set up resource
       @resource.drop_table(@name)
-      @resource.create_table(@name, ["sid int", "id1 int", "id2 int", "score int", "flags int"])
+      @resource.create_table(@name, ["sid bigint", "id1 int", "id2 int", "score int", "flags int"])
     end
 
     def each
