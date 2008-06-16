@@ -127,7 +127,7 @@ module Linkage
             end
           end
         end
-        @scratch.insert(@field_list, *@transform_buffer)  # save in database
+        @scratch.insert(@field_list, *@transform_buffer)  unless @transform_buffer.empty?
 
         # now match!
         Linkage.logger.info("Scenario (#{name}): Matching records")  if Linkage.logger

@@ -46,12 +46,6 @@ describe Linkage::Runner do
       do_run
     end
 
-    it "should create a result file for each scenario" do
-      do_run
-      File.exist?('uno.csv').should be_true
-      File.exist?('dos.csv').should be_true
-    end
-
     it "should require a scratch database resource" do
       @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
       lambda { do_run }.should raise_error
@@ -65,11 +59,6 @@ describe Linkage::Runner do
     it "should not freak if there are no transformers" do
       @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")]
       lambda { do_run }.should_not raise_error
-    end
-
-    after(:each) do
-      File.delete('uno.csv')  if File.exist?('uno.csv')
-      File.delete('dos.csv')  if File.exist?('dos.csv')
     end
   end
 end
