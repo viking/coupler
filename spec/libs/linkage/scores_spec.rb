@@ -159,19 +159,19 @@ describe Linkage::Scores do
 
         @query_result = stub('query result set', :close => nil)
         @query_result.stub!(:next).and_return(
-          [1, 20, 2], [3, 40, 4], [5, 60, 2], [7, 80, 4],
-          [9, 100, 2], nil
+          [1, 1, 2, 20, 2], [3, 1, 4, 40, 4], [5, 1, 6, 60, 2], [7, 1, 8, 80, 4],
+          [9, 1, 10, 100, 2], nil
         )
         @nil_result = stub('nil result set', :next => nil, :close => nil)
         @resource.stub!(:select).with(:all, {
           :conditions => "WHERE flags != 6",
-          :columns    => %w{sid score flags},
+          :columns    => %w{sid id1 id2 score flags},
           :limit      => 10000
         }).and_return(@query_result)
 
         @resource.stub!(:select).with(:all, {
           :conditions => "WHERE flags != 6",
-          :columns    => %w{sid score flags},
+          :columns    => %w{sid id1 id2 score flags},
           :limit      => 10000,
           :offset     => 10000
         }).and_return(@nil_result)
@@ -180,7 +180,7 @@ describe Linkage::Scores do
       it "should find all scores that aren't finished" do
         @resource.should_receive(:select).with(:all, {
           :conditions => "WHERE flags != 6",
-          :columns    => %w{sid score flags},
+          :columns    => %w{sid id1 id2 score flags},
           :limit      => 10000
         }).and_return(@query_result)
         @scores.record { |r| }
@@ -194,8 +194,8 @@ describe Linkage::Scores do
 
       it "should replace the scores appropriately" do
         @resource.should_receive(:replace).with(
-          %w{sid score}, [1, 57], [3, 53], [5, 97],
-          [7, 93], [9, 137]
+          %w{sid id1 id2 score}, [1, 1, 2, 57], [3, 1, 4, 53], [5, 1, 6, 97],
+          [7, 1, 8, 93], [9, 1, 10, 137]
         )
         @scores.record { |r| }
       end

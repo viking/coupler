@@ -33,6 +33,13 @@ shared_examples_for "any adapter" do
     end
   end
 
+  describe "#close" do
+    it "should close the connection" do
+      @conn.should_receive(:close)
+      @resource.close
+    end
+  end
+
   describe "#keys" do
     before(:each) do
       (1..5).inject(@query_result.stub!(:each)) { |m, i| m.and_yield([i]) }

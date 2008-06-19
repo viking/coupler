@@ -5,26 +5,47 @@ steps_for(:linkage) do
     @options.filenames << fn
     Linkage::Resource.reset
     Linkage::Transformer.reset
+    @adapter = name
+    @results = Hash.new { |h, k| h[k] = {} }
+    @matched = Hash.new { |h, k| h[k] = [] }
   end
 
   Given "the option of using an existing scratch database" do
     @options.use_existing_scratch = true
   end
 
+  Given "that I want CSV output files" do
+    @options.csv_output = true
+  end
+
   When "I run the scenarios" do
+#    @options.dry_run = true
     Linkage::Runner.run(@options)
   end
 
   Then "it should create the $filename file" do |filename|
     File.exist?(filename).should be_true
-    @results = Hash.new { |h, k| h[k] = {} }
-    @matched = Hash.new { |h, k| h[k] = [] }
+    @results.clear
+    @matched.clear
     FasterCSV.foreach(filename) do |row|
       next  if row[0] == "id1"
       id1 = row[0].to_i; id2 = row[1].to_i; score = row[2].to_i
       @results[id1][id2] = score
     end
-#    File.delete(filename)
+    File.delete(filename)
+  end
+
+  Then "it should store scores in the $table table" do |table|
+    @results.clear
+    @matched.clear
+
+    resource = Linkage::Resource.find('scores')
+    resource.set_table_and_key(table, "sid")
+    res = resource.select(:all, :columns => %w{sid id1 id2 score}, :order => "sid")
+    while (record = res.next)
+      @results[record[1].to_i][record[2].to_i] = record[3].to_i
+    end
+    res.close
   end
 
   Then "every $nth record should match nothing" do |nth|

@@ -74,6 +74,11 @@ module Linkage
       @connection
     end
 
+    def close
+      @connection.close   if connection
+      @connection = nil
+    end
+
     def select_all(*columns)
       select(:columns => columns)
     end

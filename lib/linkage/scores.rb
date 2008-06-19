@@ -124,7 +124,7 @@ module Linkage
         finalized_flag = 2 ** (@pass + 1) - 2
         res = @resource.select(:all, {
           :conditions => "WHERE flags != #{finalized_flag}",
-          :columns => %w{sid score flags}, :limit => @db_limit
+          :columns => %w{sid id1 id2 score flags}, :limit => @db_limit,
         })
 
         buffer = []
@@ -135,7 +135,7 @@ module Linkage
             res.close
             res = @resource.select(:all, {
               :conditions => "WHERE flags != #{finalized_flag}",
-              :columns => %w{sid score flags}, :limit => @db_limit,
+              :columns => %w{sid id1 id2 score flags}, :limit => @db_limit,
               :offset => offset
             })
             record = res.next
@@ -147,15 +147,15 @@ module Linkage
           end
 
           flags = record.pop
-          1.upto(@num) { |i| record[1] += @defaults[i-1]  if flags & (2 ** i) == 0 }
+          1.upto(@num) { |i| record[3] += @defaults[i-1]  if flags & (2 ** i) == 0 }
           buffer << record
 
           if buffer.length == @options.db_limit
-            @resource.replace(%w{sid score}, *buffer)
+            @resource.replace(%w{sid id1 id2 score}, *buffer)
             buffer.clear
           end
         end
-        @resource.replace(%w{sid score}, *buffer)   unless buffer.empty?
+        @resource.replace(%w{sid id1 id2 score}, *buffer)   unless buffer.empty?
 
         case @combining_method
         when 'mean'

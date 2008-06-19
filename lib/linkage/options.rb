@@ -12,6 +12,9 @@ module Linkage
         opts.on("-l", "--db-limit NUMBER", "Limit to use for database queries (default 10000)") do |number|
           options.db_limit = number.to_i
         end
+        opts.on("-d", "--dry-run", "Don't actually do anything") do
+          options.dry_run = true
+        end
       end
       parser.parse!(args)
       options.filenames = args
@@ -19,12 +22,13 @@ module Linkage
       options
     end
 
-    attr_accessor :filenames, :use_existing_scratch, :csv_output, :db_limit
+    attr_accessor :filenames, :use_existing_scratch, :csv_output, :db_limit, :dry_run
     def initialize
       @use_existing_scratch = false
       @csv_output = false
       @filenames = []
       @db_limit = 10000
+      @dry_run = false
     end
   end
 end

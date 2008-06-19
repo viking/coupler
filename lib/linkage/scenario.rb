@@ -20,7 +20,8 @@ module Linkage
       end
       @scratch = Linkage::Resource.find('scratch')
       @scores  = Linkage::Resource.find('scores')
-      @cache   = @guarantee ? Linkage::Cache.new('scratch', @guarantee) : Linkage::Cache.new('scratch')
+      @cache   = if @guarantee then Linkage::Cache.new('scratch', options, @guarantee)
+                 else Linkage::Cache.new('scratch', options) end
 
       # grab fields and transformers
       # NOTE: matcher fields can either be real database columns or the resulting field of
@@ -78,6 +79,8 @@ module Linkage
     end
 
     def run
+      return  if @options.dry_run
+
       @cache.clear
       Linkage.logger.info("Scenario (#{name}): Run start")  if Linkage.logger
 

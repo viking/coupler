@@ -47,9 +47,9 @@ describe Linkage::Scenario do
     before(:each) do
       @options      = Linkage::Options.new
       @result       = stub(Linkage::Resource::ResultSet)
-      @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID")
-      @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
-      @scores_db    = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil)
+      @resource     = stub(Linkage::Resource, :table => "birth_all", :primary_key => "ID", :close => nil)
+      @scratch      = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil, :close => nil)
+      @scores_db    = stub(Linkage::Resource, :create_table => nil, :insert => nil, :select_one => nil, :drop_table => nil, :set_table_and_key => nil, :close => nil)
       @cache        = stub(Linkage::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
       @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
       @date_changer = stub("date transformer", :data_type => 'varchar(10)')
@@ -156,12 +156,12 @@ describe Linkage::Scenario do
     end
 
     it "should create a cache with the scratch database" do
-      Linkage::Cache.should_receive(:new).with('scratch').and_return(@cache)
+      Linkage::Cache.should_receive(:new).with('scratch', @options).and_return(@cache)
       create_scenario
     end
 
     it "should use a guaranteed cache when specified in the YAML" do
-      Linkage::Cache.should_receive(:new).with('scratch', 1000).and_return(@cache)
+      Linkage::Cache.should_receive(:new).with('scratch', @options, 1000).and_return(@cache)
       create_scenario('guarantee' => 1000)
     end
 
