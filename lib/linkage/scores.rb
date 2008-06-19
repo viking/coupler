@@ -122,46 +122,19 @@ module Linkage
 
       def finalize_scores_in_resource
         finalized_flag = 2 ** (@pass + 1) - 2
-        res = @resource.select(:all, {
-          :conditions => "WHERE flags != #{finalized_flag}",
-          :columns => %w{sid id1 id2 score flags}, :limit => @db_limit,
-        })
 
-        buffer = []
-        offset = @db_limit
-        while true
-          record = res.next
-          if record.nil?
-            res.close
-            res = @resource.select(:all, {
-              :conditions => "WHERE flags != #{finalized_flag}",
-              :columns => %w{sid id1 id2 score flags}, :limit => @db_limit,
-              :offset => offset
-            })
-            record = res.next
-            if record.nil?
-              res.close
-              break
-            end
-            offset += @db_limit
-          end
-
-          flags = record.pop
-          1.upto(@num) { |i| record[3] += @defaults[i-1]  if flags & (2 ** i) == 0 }
-          buffer << record
-
-          if buffer.length == @options.db_limit
-            @resource.replace(%w{sid id1 id2 score}, *buffer)
-            buffer.clear
-          end
+        1.upto(@num) do |i|
+          @resource.update_all(
+            "score = score + #{@defaults[i-1]} WHERE (flags & #{2 ** i}) = 0"
+          )
         end
-        @resource.replace(%w{sid id1 id2 score}, *buffer)   unless buffer.empty?
 
         case @combining_method
         when 'mean'
           @resource.update_all("score = score / #{@num}")
         end
         
+        @resource.delete("WHERE score < #{@range.begin} AND score > #{@range.end}")
         @resource.drop_column('flags')
       end
   end

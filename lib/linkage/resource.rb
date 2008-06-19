@@ -153,6 +153,10 @@ module Linkage
       run_and_log_query("UPDATE #{@table} SET #{query}", true)
     end
 
+    def delete(conditions)
+      run_and_log_query("DELETE FROM #{@table} #{conditions}", true)
+    end
+
     def insert_or_update(conditions, columns, values)
       # FIXME: use select(), dummy.
       res = run_and_log_query("SELECT #{@primary_key} FROM #{@table} #{conditions} LIMIT 1")

@@ -25,7 +25,7 @@ describe Linkage::Scores do
       :update_all => nil, :insert => nil, :replace => nil,
       :update => nil, :primary_key => "sid", :select => @query_result,
       :drop_table => nil, :create_table => nil, :replace_scores => nil,
-      :drop_column => nil
+      :drop_column => nil, :delete => nil
     })
   end
 
@@ -177,26 +177,9 @@ describe Linkage::Scores do
         }).and_return(@nil_result)
       end
 
-      it "should find all scores that aren't finished" do
-        @resource.should_receive(:select).with(:all, {
-          :conditions => "WHERE flags != 6",
-          :columns    => %w{sid id1 id2 score flags},
-          :limit      => 10000
-        }).and_return(@query_result)
-        @scores.record { |r| }
-      end
-
-      it "should close result sets" do
-        @query_result.should_receive(:close)
-        @nil_result.should_receive(:close)
-        @scores.record { |r| }
-      end
-
-      it "should replace the scores appropriately" do
-        @resource.should_receive(:replace).with(
-          %w{sid id1 id2 score}, [1, 1, 2, 57], [3, 1, 4, 53], [5, 1, 6, 97],
-          [7, 1, 8, 93], [9, 1, 10, 137]
-        )
+      it "should update all pairs that don't have a score from a matcher" do
+        @resource.should_receive(:update_all).with("score = score + 13 WHERE (flags & 2) = 0")
+        @resource.should_receive(:update_all).with("score = score + 37 WHERE (flags & 4) = 0")
         @scores.record { |r| }
       end
 
@@ -212,19 +195,9 @@ describe Linkage::Scores do
         @scores.record { |r| }
       end
 
-      it "should select up to 50000 records when --db-limit is 50000" do
-        @options.db_limit = 50000
-        scores = create_scores('num' => 2, 'defaults' => [13, 37])
-        scores.record { |r| }
-
-        @resource.should_receive(:select).with(
-          :all, hash_including(:limit => 50000, :offset => 50000)
-        ).and_return(@nil_result)
-        @resource.should_receive(:select).with(
-          :all, hash_including(:limit => 50000)
-        ).and_return(@query_result)
-
-        scores.record { |r| }
+      it "should delete records that aren't in the specified range" do
+        @resource.should_receive(:delete).with("WHERE score < 50 AND score > 100")
+        @scores.record {|r| }
       end
     end
 

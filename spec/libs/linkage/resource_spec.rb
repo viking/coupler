@@ -72,6 +72,18 @@ shared_examples_for "any adapter" do
     end
   end
 
+  describe "#delete" do
+    it "should run: DELETE FROM birth_all WHERE ..." do
+      @conn.should_receive(@query_method).with("DELETE FROM birth_all WHERE foo = bar").and_return(@query_result)
+      @resource.delete("WHERE foo = bar")
+    end
+
+    it "should close the query result" do
+      @query_result.should_receive(:close)
+      @resource.delete("WHERE foo = bar")
+    end
+  end
+
   describe "#insert_or_update" do
     before(:each) do
       @yes_result = stub("yes result")
