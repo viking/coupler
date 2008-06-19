@@ -482,22 +482,23 @@ cache_auto_fill(self)
   rb_gc_register_address(&select_args);    /* i don't know if this is good practice or not */
   rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new("*", 1)));
   rb_hash_aset(select_args, sym_limit, LONG2NUM(NUMBER_PER_FETCH));
-  rb_hash_aset(select_args, sym_offset, INT2FIX(0));
 
-  /* get the result set */
-  res = rb_funcall(c->resource, id_select, 1, select_args);
-
-  offset = NUMBER_PER_FETCH;
+  offset = 0;
   while (offset < count) {
+    /* get the result set */
+    rb_hash_aset(select_args, sym_offset, INT2FIX(offset));
+    res = rb_funcall(c->resource, id_select, 1, select_args);
+    if (!RTEST(res))
+      break;
+
     while ( RTEST(tmp = rb_funcall(res, id_next, 0)) ) {
       /* key is first element in tmp */
       key = rb_ary_shift(tmp);
       do_add(c, key, tmp);
       rb_ary_store(c->keys, RARRAY(c->keys)->len, key);
     }
-    rb_hash_aset(select_args, sym_offset, LONG2NUM(offset));
+    rb_funcall(res, id_close, 0);
     offset += NUMBER_PER_FETCH;
-    res = rb_funcall(c->resource, id_select, 1, select_args);
   }
 
   rb_gc_unregister_address(&select_args);

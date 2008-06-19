@@ -3,7 +3,8 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 describe Linkage::Cache do
   before(:each) do
     @set = stub("result set", :close => nil, :next => nil)
-    @scratch = stub("scratch resource", :primary_key => "ID", :select => @set)
+    @scratch = stub("scratch resource", :primary_key => "ID")
+    @scratch.stub!(:select).and_return { @set.should_receive(:close).any_number_of_times; @set }
     Linkage::Resource.stub!(:find).and_return(@scratch)
   end
 
@@ -33,6 +34,7 @@ describe Linkage::Cache do
     it "should have a window of marked records" do
       GC.start
       @scratch.should_receive(:select).and_return(@set)
+      @set.should_receive(:close).any_number_of_times
       @cache.fetch(11)
     end
   end
@@ -121,7 +123,7 @@ describe Linkage::Cache do
           @scratch.stub!(:select).with({
             :conditions => "WHERE ID IN (1)",
             :columns => ["ID", "*"]
-          }).and_return(@set)
+          }).and_return { @set.should_receive(:close); @set }
         end
 
         it "should find the record in the database" do
@@ -129,6 +131,7 @@ describe Linkage::Cache do
             :conditions => "WHERE ID IN (1)",
             :columns => ["ID", "*"]
           }).and_return(@set)
+          @set.should_receive(:close)
           @cache.fetch(1)
         end
 
@@ -139,19 +142,15 @@ describe Linkage::Cache do
         end
 
         it "should find multiple records in the database" do
-          set = stub("result set", :close => nil)
+          set = stub("result set")
           set.stub!(:next).and_return(["data 1"], ["data 2"], ["data 3"], nil)
+          set.should_receive(:close).any_number_of_times
           @scratch.should_receive(:select).with({
             :conditions => "WHERE ID IN (1, 2, 3)",
             :columns    => ["ID", "*"]
           }).and_return(set)
 
           @cache.fetch(1, 2, 3)
-        end
-
-        it "should close the result set" do
-          @set.should_receive(:close)
-          @cache.fetch(1)
         end
       end
     end   # end fetch
@@ -167,12 +166,12 @@ describe Linkage::Cache do
           :columns => ["ID", "*"],
           :limit => 10000,
           :offset => 0
-        }).and_return(@first_set)
+        }).and_return { @first_set.should_receive(:close); @first_set }
         @scratch.stub!(:select).with({
           :columns => ["ID", "*"],
           :limit => 10000,
           :offset => 10000
-        }).and_return(@second_set)
+        }).and_return { @second_set.should_receive(:close); @second_set }
         @scratch.stub!(:count).and_return(20000)
       end
 
@@ -187,6 +186,8 @@ describe Linkage::Cache do
           :limit => 10000,
           :offset => 10000
         }).and_return(@second_set)
+        @first_set.should_receive(:close)
+        @second_set.should_receive(:close)
         @cache.auto_fill!
       end
 
@@ -200,10 +201,5 @@ describe Linkage::Cache do
         @cache.keys.should == [1, 2]
       end
     end
-
-    describe "#update" do
-      it "should update the resource"
-    end
   end
-
 end
