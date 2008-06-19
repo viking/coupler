@@ -13,6 +13,7 @@ module Linkage
 
     def initialize(spec, options)
       @options  = options
+      @db_limit = options.db_limit
       @keys     = spec['keys']
       @num      = spec['num']   # number of matchers
       @range    = spec['range']
@@ -66,36 +67,7 @@ module Linkage
 
       if @pass == @num
         @finalized = true
-
-        if !@options.csv_output
-          # finalize scores in the database
-          finalized_flag = 2 ** (@pass + 1) - 2
-          res = @resource.select(:all, {
-            :conditions => "WHERE flags != #{finalized_flag}",
-            :columns => %w{sid score flags}
-          })
-
-          buffer = []
-          while (record = res.next)
-            flags = record.pop
-            1.upto(@num) { |i| record[1] += @defaults[i-1]  if flags & (2 ** i) == 0 }
-            buffer << record
-
-            if buffer.length == @options.db_limit
-              @resource.replace(%w{sid score}, *buffer)
-              buffer.clear
-            end
-          end
-          @resource.replace(%w{sid score}, *buffer)   unless buffer.empty?
-          res.close
-
-          case @combining_method
-          when 'mean'
-            @resource.update_all("score = score / #{@num}")
-          end
-          
-          @resource.drop_column('flags')
-        end
+        finalize_scores_in_resource   unless @options.csv_output
       end
     end
 
@@ -146,6 +118,51 @@ module Linkage
           @resource.replace(%w{sid id1 id2 score flags}, *@score_buffer.values)
         end
         @score_buffer.clear
+      end
+
+      def finalize_scores_in_resource
+        finalized_flag = 2 ** (@pass + 1) - 2
+        res = @resource.select(:all, {
+          :conditions => "WHERE flags != #{finalized_flag}",
+          :columns => %w{sid score flags}, :limit => @db_limit
+        })
+
+        buffer = []
+        offset = @db_limit
+        while true
+          record = res.next
+          if record.nil?
+            res.close
+            res = @resource.select(:all, {
+              :conditions => "WHERE flags != #{finalized_flag}",
+              :columns => %w{sid score flags}, :limit => @db_limit,
+              :offset => offset
+            })
+            record = res.next
+            if record.nil?
+              res.close
+              break
+            end
+            offset += @db_limit
+          end
+
+          flags = record.pop
+          1.upto(@num) { |i| record[1] += @defaults[i-1]  if flags & (2 ** i) == 0 }
+          buffer << record
+
+          if buffer.length == @options.db_limit
+            @resource.replace(%w{sid score}, *buffer)
+            buffer.clear
+          end
+        end
+        @resource.replace(%w{sid score}, *buffer)   unless buffer.empty?
+
+        case @combining_method
+        when 'mean'
+          @resource.update_all("score = score / #{@num}")
+        end
+        
+        @resource.drop_column('flags')
       end
   end
 end

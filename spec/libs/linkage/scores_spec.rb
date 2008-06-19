@@ -162,19 +162,33 @@ describe Linkage::Scores do
           [1, 20, 2], [3, 40, 4], [5, 60, 2], [7, 80, 4],
           [9, 100, 2], nil
         )
-        @resource.stub!(:select).and_return(@query_result)
+        @nil_result = stub('nil result set', :next => nil, :close => nil)
+        @resource.stub!(:select).with(:all, {
+          :conditions => "WHERE flags != 6",
+          :columns    => %w{sid score flags},
+          :limit      => 10000
+        }).and_return(@query_result)
+
+        @resource.stub!(:select).with(:all, {
+          :conditions => "WHERE flags != 6",
+          :columns    => %w{sid score flags},
+          :limit      => 10000,
+          :offset     => 10000
+        }).and_return(@nil_result)
       end
 
       it "should find all scores that aren't finished" do
         @resource.should_receive(:select).with(:all, {
           :conditions => "WHERE flags != 6",
-          :columns => %w{sid score flags}
+          :columns    => %w{sid score flags},
+          :limit      => 10000
         }).and_return(@query_result)
         @scores.record { |r| }
       end
 
-      it "should close the query result" do
+      it "should close result sets" do
         @query_result.should_receive(:close)
+        @nil_result.should_receive(:close)
         @scores.record { |r| }
       end
 
@@ -196,6 +210,21 @@ describe Linkage::Scores do
       it "should drop the flags column" do
         @resource.should_receive(:drop_column).with('flags')
         @scores.record { |r| }
+      end
+
+      it "should select up to 50000 records when --db-limit is 50000" do
+        @options.db_limit = 50000
+        scores = create_scores('num' => 2, 'defaults' => [13, 37])
+        scores.record { |r| }
+
+        @resource.should_receive(:select).with(
+          :all, hash_including(:limit => 50000, :offset => 50000)
+        ).and_return(@nil_result)
+        @resource.should_receive(:select).with(
+          :all, hash_including(:limit => 50000)
+        ).and_return(@query_result)
+
+        scores.record { |r| }
       end
     end
 
