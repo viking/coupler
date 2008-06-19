@@ -19,7 +19,7 @@ end
 desc "Build project"
 task :build do
   srcdir  = File.dirname(__FILE__) + "/ext"
-  destdir = File.dirname(__FILE__) + "/lib/linkage"
+  destdir = File.dirname(__FILE__) + "/lib/coupler"
   `make -C #{srcdir}`
   if File.exist?(fn = "#{srcdir}/cache.so") || File.exist?(fn = "#{srcdir}/cache.bundle")
     FileUtils.copy(fn, destdir)

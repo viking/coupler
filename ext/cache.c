@@ -1,14 +1,14 @@
 #include "ruby.h"
 #include "st.h"
-#define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
+#define GetCache(obj, ptr) Data_Get_Struct(obj, CouplerCache, ptr);
 
 static ID    id_find, id_primary_key, id_select, id_next, id_close, id_reclaim,
              id_method, id_to_proc, id_define_finalizer, id_debug, id_count;
 static VALUE sym_columns, sym_conditions, sym_offset, sym_limit;
 
-VALUE rb_mLinkage;
-VALUE rb_mLinkage_cResource;
-VALUE rb_mLinkage_cCache;
+VALUE rb_mCoupler;
+VALUE rb_mCoupler_cResource;
+VALUE rb_mCoupler_cCache;
 VALUE rb_mObSpace;
 
 /* copied from st.c; I have no idea why it's not in st.h */
@@ -26,7 +26,7 @@ typedef struct guar_s {
   void *next;
 } guar;
 
-typedef struct LinkageCache_s {
+typedef struct CouplerCache_s {
   struct st_table *cache;
   struct st_table *rev_cache;
   VALUE resource;
@@ -41,7 +41,7 @@ typedef struct LinkageCache_s {
   int   db_limit;
   guar *ghead;
   guar *gtail;
-} LinkageCache;
+} CouplerCache;
 
 typedef struct CacheEntry_s {
   VALUE data;
@@ -50,7 +50,7 @@ typedef struct CacheEntry_s {
 
 void
 cache_mark(c)
-  LinkageCache *c;
+  CouplerCache *c;
 {
   int i;
   CacheEntry *e;
@@ -72,7 +72,7 @@ cache_mark(c)
 
 void
 do_clear(c)
-  LinkageCache *c;
+  CouplerCache *c;
 {
   struct st_table *hash;
   st_table_entry *ptr, *next;
@@ -116,7 +116,7 @@ do_clear(c)
 
 void
 cache_free(c)
-  LinkageCache *c;
+  CouplerCache *c;
 {
   do_clear(c);
   st_free_table(c->cache);
@@ -128,7 +128,7 @@ static VALUE
 cache_alloc(klass)
   VALUE klass;
 {
-  LinkageCache *c = ALLOC(LinkageCache);
+  CouplerCache *c = ALLOC(CouplerCache);
   c->resource     = Qnil;
   c->primary_key  = Qnil;
   c->reclaim_proc = Qnil;
@@ -150,7 +150,7 @@ cache_init(argc, argv, self)
   VALUE *argv;
   VALUE  self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   VALUE resource_name, guaranteed, resource, method, options;
 
   GetCache(self, c);
@@ -167,13 +167,13 @@ cache_init(argc, argv, self)
   }
 
   /* find resource */
-  resource = rb_funcall(rb_mLinkage_cResource, id_find, 1, resource_name);
+  resource = rb_funcall(rb_mCoupler_cResource, id_find, 1, resource_name);
 
   /* initialize data */
   c->resource    = resource;
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
   c->keys        = rb_ary_new();
-  c->logger      = rb_funcall(rb_mLinkage, rb_intern("logger"), 0);
+  c->logger      = rb_funcall(rb_mCoupler, rb_intern("logger"), 0);
   c->db_limit    = FIX2INT(rb_funcall(options, rb_intern("db_limit"), 0));
 
   /* make the reclaim proc.  this is kinda ghetto */
@@ -189,7 +189,7 @@ cache_reclaim(self, object_id)
   VALUE object_id;
 {
   VALUE key;
-  LinkageCache *c;
+  CouplerCache *c;
   CacheEntry   *e;
   GetCache(self, c);
 
@@ -207,7 +207,7 @@ cache_reclaim(self, object_id)
 
 static void
 cache_reclaim2(c, e, obj)
-  LinkageCache *c;
+  CouplerCache *c;
   CacheEntry   *e;
 {
   VALUE object_id;
@@ -220,7 +220,7 @@ cache_reclaim2(c, e, obj)
 
 static void
 do_add(c, key, value)
-  LinkageCache *c;
+  CouplerCache *c;
   VALUE key;
   VALUE value;
 {
@@ -270,7 +270,7 @@ cache_add(self, key, value)
   VALUE key;
   VALUE value;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
   do_add(c, key, value);
   rb_ary_store(c->keys, RARRAY(c->keys)->len, key);
@@ -297,7 +297,7 @@ cache_fetch(self, args)
   unsigned long i, entry_l;
   int str_len;
   char *c_qry;
-  LinkageCache *c;
+  CouplerCache *c;
   CacheEntry   *e;
 
   GetCache(self, c);
@@ -409,7 +409,7 @@ static VALUE
 cache_fetches(self)
   VALUE self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
   return INT2FIX(c->fetches);
 }
@@ -418,7 +418,7 @@ static VALUE
 cache_misses(self)
   VALUE self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
   return INT2FIX(c->misses);
 }
@@ -427,7 +427,7 @@ static VALUE
 cache_count(self)
   VALUE self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
   return LONG2NUM(RARRAY(c->keys)->len); 
 }
@@ -442,7 +442,7 @@ static VALUE
 cache_keys(self)
   VALUE self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
   return c->keys;
 }
@@ -452,7 +452,7 @@ cache_aref(self, offset)
   VALUE self;
   VALUE offset;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
 }
 
@@ -460,7 +460,7 @@ static VALUE
 cache_clear(self)
   VALUE self;
 {
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
 
   do_clear(c);
@@ -474,7 +474,7 @@ cache_auto_fill(self)
 {
   VALUE select_args, tmp, key, res; 
   long count, offset;
-  LinkageCache *c;
+  CouplerCache *c;
   GetCache(self, c);
 
   count = rb_funcall(c->resource, id_count, 0);
@@ -527,19 +527,19 @@ Init_cache()
   sym_offset     = ID2SYM(rb_intern("offset"));
 
   rb_mObSpace = rb_const_get(rb_cObject, rb_intern("ObjectSpace"));
-  rb_mLinkage = rb_const_get(rb_cObject, rb_intern("Linkage"));
-  rb_mLinkage_cResource = rb_const_get(rb_mLinkage, rb_intern("Resource"));
+  rb_mCoupler = rb_const_get(rb_cObject, rb_intern("Coupler"));
+  rb_mCoupler_cResource = rb_const_get(rb_mCoupler, rb_intern("Resource"));
   
-  rb_mLinkage_cCache = rb_define_class_under(rb_mLinkage, "Cache", rb_cObject);
-  rb_define_alloc_func(rb_mLinkage_cCache, cache_alloc);
-  rb_define_method(rb_mLinkage_cCache, "initialize", cache_init, -1);
-  rb_define_method(rb_mLinkage_cCache, "add", cache_add, 2);
-  rb_define_method(rb_mLinkage_cCache, "fetch", cache_fetch, -2);
-  rb_define_method(rb_mLinkage_cCache, "fetches", cache_fetches, 0);
-  rb_define_method(rb_mLinkage_cCache, "misses", cache_misses, 0);
-  rb_define_method(rb_mLinkage_cCache, "count", cache_count, 0);
-  rb_define_method(rb_mLinkage_cCache, "keys", cache_keys, 0);
-  rb_define_method(rb_mLinkage_cCache, "clear", cache_clear, 0);
-  rb_define_method(rb_mLinkage_cCache, "auto_fill!", cache_auto_fill, 0);
-  rb_define_private_method(rb_mLinkage_cCache, "reclaim", cache_reclaim, 1);
+  rb_mCoupler_cCache = rb_define_class_under(rb_mCoupler, "Cache", rb_cObject);
+  rb_define_alloc_func(rb_mCoupler_cCache, cache_alloc);
+  rb_define_method(rb_mCoupler_cCache, "initialize", cache_init, -1);
+  rb_define_method(rb_mCoupler_cCache, "add", cache_add, 2);
+  rb_define_method(rb_mCoupler_cCache, "fetch", cache_fetch, -2);
+  rb_define_method(rb_mCoupler_cCache, "fetches", cache_fetches, 0);
+  rb_define_method(rb_mCoupler_cCache, "misses", cache_misses, 0);
+  rb_define_method(rb_mCoupler_cCache, "count", cache_count, 0);
+  rb_define_method(rb_mCoupler_cCache, "keys", cache_keys, 0);
+  rb_define_method(rb_mCoupler_cCache, "clear", cache_clear, 0);
+  rb_define_method(rb_mCoupler_cCache, "auto_fill!", cache_auto_fill, 0);
+  rb_define_private_method(rb_mCoupler_cCache, "reclaim", cache_reclaim, 1);
 }

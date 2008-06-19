@@ -4,7 +4,7 @@ require 'ruby-debug'
 require 'yaml'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
-require 'linkage'
+require 'coupler'
 
 Spec::Runner.configure do |config|
   # == Mock Framework

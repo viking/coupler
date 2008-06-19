@@ -6,8 +6,8 @@ require 'yaml'
 require 'erb'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
-require 'linkage'
+require 'coupler'
 
 logger = Logger.new(File.dirname(__FILE__) + "/../log/story.log")
 logger.level = Logger::INFO
-Linkage.logger = logger 
+Coupler.logger = logger 

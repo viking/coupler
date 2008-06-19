@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
-require 'linkage'
+require 'coupler'
 
 logger = Logger.new(File.dirname(__FILE__) + "/../log/runner.log")
 logger.level = Logger::DEBUG
-Linkage.logger = logger 
+Coupler.logger = logger 
 
-options = Linkage::Options.parse(ARGV)
-Linkage::Runner.run(options)
+options = Coupler::Options.parse(ARGV)
+Coupler::Runner.run(options)
