@@ -1,6 +1,5 @@
 #include "ruby.h"
 #include "st.h"
-#define NUMBER_PER_FETCH 10000
 #define GetCache(obj, ptr) Data_Get_Struct(obj, LinkageCache, ptr);
 
 static ID    id_find, id_primary_key, id_select, id_next, id_close, id_reclaim,
@@ -39,6 +38,7 @@ typedef struct LinkageCache_s {
   long  live;
   long  fetches;
   long  misses;
+  int   db_limit;
   guar *ghead;
   guar *gtail;
 } LinkageCache;
@@ -136,6 +136,7 @@ cache_alloc(klass)
   c->fetches      = 0;
   c->misses       = 0;
   c->live         = 0;
+  c->db_limit     = 0;
   c->cache        = st_init_numtable();
   c->rev_cache    = st_init_numtable();
   c->ghead        = 0;
@@ -150,10 +151,10 @@ cache_init(argc, argv, self)
   VALUE  self;
 {
   LinkageCache *c;
-  VALUE resource_name, guaranteed, resource, method;
+  VALUE resource_name, guaranteed, resource, method, options;
 
   GetCache(self, c);
-  if (rb_scan_args(argc, argv, "11", &resource_name, &guaranteed)) {
+  if (rb_scan_args(argc, argv, "21", &resource_name, &options, &guaranteed)) {
     if (!NIL_P(guaranteed)) {
       if (!FIXNUM_P(guaranteed))
         rb_raise(rb_eTypeError, "wrong argument type %s (expected Fixnum)", rb_obj_classname(guaranteed));
@@ -173,6 +174,7 @@ cache_init(argc, argv, self)
   c->primary_key = rb_funcall(resource, id_primary_key, 0);
   c->keys        = rb_ary_new();
   c->logger      = rb_funcall(rb_mLinkage, rb_intern("logger"), 0);
+  c->db_limit    = FIX2INT(rb_funcall(options, rb_intern("db_limit"), 0));
 
   /* make the reclaim proc.  this is kinda ghetto */
   method = rb_funcall(self, id_method, 1, ID2SYM(id_reclaim));
@@ -481,7 +483,7 @@ cache_auto_fill(self)
   select_args = rb_hash_new();
   rb_gc_register_address(&select_args);    /* i don't know if this is good practice or not */
   rb_hash_aset(select_args, sym_columns, rb_ary_new3(2, c->primary_key, rb_str_new("*", 1)));
-  rb_hash_aset(select_args, sym_limit, LONG2NUM(NUMBER_PER_FETCH));
+  rb_hash_aset(select_args, sym_limit, LONG2NUM(c->db_limit));
 
   offset = 0;
   while (offset < count) {
@@ -498,7 +500,7 @@ cache_auto_fill(self)
       rb_ary_store(c->keys, RARRAY(c->keys)->len, key);
     }
     rb_funcall(res, id_close, 0);
-    offset += NUMBER_PER_FETCH;
+    offset += c->db_limit;
   }
 
   rb_gc_unregister_address(&select_args);

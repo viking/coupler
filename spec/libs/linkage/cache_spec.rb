@@ -1,25 +1,56 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Linkage::Cache do
+
   before(:each) do
     @set = stub("result set", :close => nil, :next => nil)
     @scratch = stub("scratch resource", :primary_key => "ID")
     @scratch.stub!(:select).and_return { @set.should_receive(:close).any_number_of_times; @set }
+    @options = Linkage::Options.new
     Linkage::Resource.stub!(:find).and_return(@scratch)
   end
 
   it "should find the scratch resource on create" do
     Linkage::Resource.should_receive(:find).and_return(@scratch)
-    Linkage::Cache.new('scratch')
+    Linkage::Cache.new('scratch', @options)
   end
 
   it "should accept a number of guaranteed records" do
-    Linkage::Cache.new('scratch', 1000)
+    Linkage::Cache.new('scratch', @options, 1000)
+  end
+
+  describe "when --db-limit is 50000" do
+    before(:each) do
+      @options.db_limit = 50000
+      @cache = Linkage::Cache.new('scratch', @options, 10)
+    end
+
+    it "#auto_fill! should select all records from the database, 50000 at a time" do
+      first_set = stub("first result set", :close => nil)
+      first_set.stub!(:next).and_return([1, 1, "data 1"], nil)
+      second_set = stub("second result set", :close => nil)
+      second_set.stub!(:next).and_return([2, 2, "data 2"], nil)
+
+      @scratch.stub!(:count).and_return(100000)
+      @scratch.should_receive(:select).with({
+        :columns => ["ID", "*"],
+        :limit => 50000,
+        :offset => 0
+      }).and_return(first_set)
+      @scratch.should_receive(:select).with({
+        :columns => ["ID", "*"],
+        :limit => 50000,
+        :offset => 50000
+      }).and_return(second_set)
+      first_set.should_receive(:close)
+      second_set.should_receive(:close)
+      @cache.auto_fill!
+    end
   end
 
   describe "when guaranteeing 10 records" do
     before(:each) do
-      @cache = Linkage::Cache.new('scratch', 10)
+      @cache = Linkage::Cache.new('scratch', @options, 10)
       (1..11).each do |i|
         @cache.add(i, [i, "data #{i}"])
       end
@@ -41,7 +72,7 @@ describe Linkage::Cache do
   
   describe do
     before(:each) do
-      @cache = Linkage::Cache.new('scratch')
+      @cache = Linkage::Cache.new('scratch', @options)
     end
 
     describe "#count" do
