@@ -86,7 +86,6 @@ module Linkage
         # select records
         @num_records   = @limit ? @limit : @resource.count.to_i
         @record_offset = 0
-        progress = Progress.new(@num_records)   if DEBUG
         record_set = grab_records
 
         # setup scratch database
@@ -121,7 +120,7 @@ module Linkage
             @cache.add(record_id, record)   if @use_cache
 
             @transform_buffer << record
-            if @transform_buffer.length == 10000
+            if @transform_buffer.length == @options.db_limit
               @scratch.insert(@field_list, *@transform_buffer)  # save in database
               @transform_buffer.clear
             end
@@ -153,7 +152,7 @@ module Linkage
     private
       def grab_records
         if @num_records > 0 
-          limit = @limit && @limit < Linkage::NUMBER_PER_FETCH ? @limit : Linkage::NUMBER_PER_FETCH
+          limit = @limit && @limit < @options.db_limit ? @limit : @options.db_limit 
           if @conditions
             set = @resource.select({
               :limit => limit, :columns => @resource_fields, :conditions => @conditions,
@@ -165,8 +164,8 @@ module Linkage
               :offset => @record_offset, :order => @primary_key
             })
           end
-          @num_records   -= NUMBER_PER_FETCH 
-          @record_offset += NUMBER_PER_FETCH
+          @num_records   -= @options.db_limit 
+          @record_offset += @options.db_limit
           return set
         end
         nil

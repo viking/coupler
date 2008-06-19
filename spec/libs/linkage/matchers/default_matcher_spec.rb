@@ -1,16 +1,17 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
 describe Linkage::Matchers::DefaultMatcher do
-  def create_matcher(options = {})
+  def create_matcher(spec = {})
     Linkage::Matchers::DefaultMatcher.new({
       'field'   => 'MomSSN',
       'formula' => '(!a.nil? && a == b) ? 100 : 0',
       'index'   => 1,
       'cache'   => @cache
-    }.merge(options))
+    }.merge(spec), @options)
   end
 
   before(:each) do
+    @options = Linkage::Options.new
     @records = [
       [1, "123456789"],
       [2, "987654321"],

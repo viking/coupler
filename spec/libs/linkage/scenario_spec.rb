@@ -282,6 +282,38 @@ describe Linkage::Scenario do
         end
       end
 
+      describe "when --db-limit 50000" do
+        before(:each) do
+          @options.db_limit = 50000
+          @resource.stub!(:select).with({
+            :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+            :limit => 50000, :offset => 0
+          }).and_return(@all_result)
+        end
+
+        it "should select 50000 records at a time" do
+          @resource.should_receive(:select).with({
+            :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+            :limit => 50000, :offset => 0
+          }).and_return(@all_result)
+          s = create_scenario
+          s.run
+        end
+
+        it "should insert at most 50000 records into scratch at a time when --db-limit 50000" do
+          # this is a crappy way to test this
+          scenario = create_scenario
+          buff = scenario.instance_variable_get("@transform_buffer")
+          buff.stub!(:length).and_return(50000)  # hackery
+          fields = %w{ID MomSSN MomDOB}
+          @scratch.should_receive(:insert).with(fields, [1, "123456789", "1982-04-15"])
+          @scratch.should_receive(:insert).with(fields, [2, nil, "1980-09-04"])
+          @scratch.should_receive(:insert).with(fields, [3, "123456789", "1982-04-15"])
+          @scratch.should_receive(:insert).with(fields, [4, "123456789", "1980-09-04"])
+          scenario.run
+        end
+      end
+
       it "should clear the cache" do
         @cache.should_receive(:clear)
         do_run
@@ -305,7 +337,7 @@ describe Linkage::Scenario do
         s = create_scenario
         s.run
       end
-
+      
       it "should select only certain records if given conditions" do
         @resource.should_receive(:select).with({
           :columns => %w{ID MomSSN MomDOB}, :limit => 10000,

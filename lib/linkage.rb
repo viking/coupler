@@ -7,7 +7,6 @@ require 'optparse'
 require 'rubygems'
 require 'sqlite3'
 require 'mysql'
-require 'ruby-debug'
 require 'fastercsv'
 
 require 'progress'
@@ -22,8 +21,6 @@ require 'linkage/scores'
 require 'linkage/options'
 
 module Linkage
-  NUMBER_PER_FETCH = 10000
-  
   @@logger = nil
   def self.logger
     @@logger

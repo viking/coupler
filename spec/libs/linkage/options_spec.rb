@@ -26,6 +26,11 @@ describe Linkage::Options do
       do_parse %w{foo.yml --csv}
       @options.csv_output.should be_true
     end
+
+    it "should set db_limit" do
+      do_parse %w{foo.yml --db-limit=50000}
+      @options.db_limit.should == 50000
+    end
   end
 
   it "should not use_existing_scratch by default" do
@@ -41,5 +46,10 @@ describe Linkage::Options do
   it "should have no filenames by default" do
     opts = Linkage::Options.new
     opts.filenames.should == []
+  end
+
+  it "should have a db limit of 10000 by default" do
+    opts = Linkage::Options.new
+    opts.db_limit.should == 10000
   end
 end

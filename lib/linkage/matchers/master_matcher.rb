@@ -17,16 +17,16 @@ module Linkage
         @defaults   = []
       end
 
-      def add_matcher(options)
-        case options['type']
+      def add_matcher(matcher)
+        case matcher['type']
         when 'exact'
-          options['resource'] = @resource
-          @matchers << ExactMatcher.new(options)
+          matcher['resource'] = @resource
+          @matchers << ExactMatcher.new(matcher, @options)
           @defaults << @matchers.last.false_score
         else
-          options['index'] = @field_list.index(options['field'])
-          options['cache'] = @cache
-          @matchers << DefaultMatcher.new(options)
+          matcher['index'] = @field_list.index(matcher['field'])
+          matcher['cache'] = @cache
+          @matchers << DefaultMatcher.new(matcher, @options)
           @defaults << 0
         end
       end

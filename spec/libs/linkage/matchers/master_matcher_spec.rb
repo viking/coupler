@@ -64,7 +64,7 @@ describe Linkage::Matchers::MasterMatcher do
       Linkage::Matchers::ExactMatcher.should_receive(:new).with({
         'field' => 'bar', 'type' => 'exact',
         'resource' => @resource
-      }).and_return(@exact)
+      }, @options).and_return(@exact)
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
     end
 
@@ -72,7 +72,7 @@ describe Linkage::Matchers::MasterMatcher do
       Linkage::Matchers::DefaultMatcher.should_receive(:new).with({
         'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
         'cache' => @cache
-      }).and_return(@default)
+      }, @options).and_return(@default)
       @master.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
     end
   end

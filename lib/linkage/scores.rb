@@ -81,7 +81,7 @@ module Linkage
             1.upto(@num) { |i| record[1] += @defaults[i-1]  if flags & (2 ** i) == 0 }
             buffer << record
 
-            if buffer.length == 10000
+            if buffer.length == @options.db_limit
               @resource.replace(%w{sid score}, *buffer)
               buffer.clear
             end
@@ -117,7 +117,7 @@ module Linkage
           sid = @num_scores - (n * (n-1) / 2) + (index2 - index1)
 
           @score_buffer[sid] = [sid, id1, id2, score, 2 ** @pass]
-          do_score_replacement  if @score_buffer.length == 10000
+          do_score_replacement  if @score_buffer.length == @options.db_limit
 
         rescue NoMethodError
           raise "bad keys used for adding scores!"

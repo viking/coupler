@@ -3,14 +3,15 @@ require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 describe Linkage::Matchers::ExactMatcher do
   before(:each) do
     @resource = stub(Linkage::Resource)
+    @options  = Linkage::Options.new
   end
 
-  def create_matcher(options = {})
+  def create_matcher(spec = {}, opts = {})
     Linkage::Matchers::ExactMatcher.new({
       'field'    => 'ssn',
       'type'     => 'exact',
       'resource' => @resource
-    }.merge(options))
+    }.merge(spec), @options)
   end
 
   it "should have a field" do
@@ -94,7 +95,7 @@ describe Linkage::Matchers::ExactMatcher do
       end
     end
 
-    describe "on 2000 records" do
+    describe "on a lot of records" do
       before(:each) do
         @set1 = stub("first result set", :close => nil)
         @set1.stub!(:next).and_return(
@@ -117,7 +118,17 @@ describe Linkage::Matchers::ExactMatcher do
       it "should select 10000 records at a time" do
         @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000).and_return(@set1)
         @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 10000).and_return(@set2)
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 10000, :offset => 20000).and_return(@nil_set)
         @matcher.score(@recorder)
+      end
+
+      it "should select 50000 records at a time when --db-limit is 50000" do
+        @options.db_limit = 50000
+        m = create_matcher
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 50000).and_return(@set1)
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 50000, :offset => 50000).and_return(@set2)
+        @resource.should_receive(:select).with(:columns => ['id', 'ssn'], :order => 'ssn', :limit => 50000, :offset => 100000).and_return(@nil_set)
+        m.score(@recorder)
       end
 
       it "should close all sets" do

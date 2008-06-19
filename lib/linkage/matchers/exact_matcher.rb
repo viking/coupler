@@ -3,11 +3,13 @@ module Linkage
     class ExactMatcher
       attr_reader :field, :true_score, :false_score
 
-      def initialize(options)
-        @field       = options['field']
-        @resource    = options['resource']
-        @false_score = options['scores'] ? options['scores'].first : 0
-        @true_score  = options['scores'] ? options['scores'].last  : 100
+      def initialize(spec, options)
+        @options     = options
+        @field       = spec['field']
+        @resource    = spec['resource']
+        @false_score = spec['scores'] ? spec['scores'].first : 0
+        @true_score  = spec['scores'] ? spec['scores'].last  : 100
+        @limit       = options.db_limit
       end
 
       def score(scores)
@@ -17,15 +19,17 @@ module Linkage
         last    = nil 
         group   = []
         offset  = 0
-        records = @resource.select(:columns => [key, @field], :order => @field, :limit => Linkage::NUMBER_PER_FETCH)
+        records = @resource.select({
+          :columns => [key, @field], :order => @field, :limit => @limit
+        })
         while (true)
           row = records.next
           if row.nil?
             records.close
-            offset += Linkage::NUMBER_PER_FETCH
+            offset += @limit
             records = @resource.select({
               :columns => [key, @field], :order => @field,
-              :limit => Linkage::NUMBER_PER_FETCH, :offset => offset
+              :limit => @limit, :offset => offset
             })
             row = records.next
             break if row.nil?
