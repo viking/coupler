@@ -2,6 +2,7 @@ Short term
 - create stock Transformer classes
 - add a multi-field exact matcher option
 - add range attribute to each matcher for fine-tuning
+- add ability for transformers to chain
 
 Long term
 - split up the transformation process into a separate script

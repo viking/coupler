@@ -3,6 +3,8 @@ module Coupler
     def self.parse(args)
       options = Coupler::Options.new
       parser  = OptionParser.new do |opts|
+        script_name = File.basename($0)
+        opts.banner = "Usage: #{script_name} [options] <filenames>"
         opts.on("-e", "--use-existing-scratch", "Don't recreate the scratch database") do
           options.use_existing_scratch = true
         end
