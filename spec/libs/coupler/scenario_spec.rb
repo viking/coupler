@@ -253,7 +253,7 @@ describe Coupler::Scenario do
         end
 
         it "should set the table and key of the scratch resource" do
-          @scratch.should_receive(:set_table_and_key).with('birth_all', 'ID')
+          @scratch.should_receive(:set_table_and_key).with('family', 'ID')
           @scenario.run
         end
       end
@@ -388,17 +388,15 @@ describe Coupler::Scenario do
       end
 
       it "should drop the table from the scratch resource" do
-        @scratch.should_receive(:drop_table).with("birth_all")
+        @scratch.should_receive(:drop_table).with("family")
         do_run
       end
 
       it "should setup the scratch resource with all needed columns" do
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
+        @scratch.should_receive(:create_table).with('family', ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
         s = create_scenario
         s.run
       end
-
-      it "should name the scratch table something unique, like the name of the scenario"
 
       it "should setup the scratch resource properly even if the first record has nil values" do
         @all_result.stub!(:next).and_return(
@@ -408,13 +406,13 @@ describe Coupler::Scenario do
           [4, "123456789", @date_2],
           nil
         )
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
+        @scratch.should_receive(:create_table).with("family", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], [])
         s = create_scenario
         s.run
       end
 
       it "should create an index on the scratch resource for exact matchers" do
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], ["MomDOB"])
+        @scratch.should_receive(:create_table).with("family", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], ["MomDOB"])
         s = create_scenario({
           'matchers' => [
             {'field'   => 'MomSSN', 'formula' => '(!a.nil? && a == b) ? 100 : 0'},
@@ -426,7 +424,7 @@ describe Coupler::Scenario do
 
       it "should set up indices properly for an exact matcher with multiple fields" do
         @scratch.should_receive(:create_table).with(
-          "birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"],
+          "family", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"],
           [%w{MomSSN MomDOB}]
         )
         s = create_scenario({
@@ -449,7 +447,7 @@ describe Coupler::Scenario do
           :columns => %w{ID MomDOB some_field some_other_field},
           :order => "ID", :limit => 10000, :offset => 0
         }).and_return(@all_result)
-        @scratch.should_receive(:create_table).with("birth_all", ["ID int", "MomSSN varchar(1337)", "MomDOB date"], [])
+        @scratch.should_receive(:create_table).with("family", ["ID int", "MomSSN varchar(1337)", "MomDOB date"], [])
         create_scenario({
           'transformations' => [{
             'name' => 'MomSSN', 'transformer' => 'baka',

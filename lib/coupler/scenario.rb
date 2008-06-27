@@ -95,14 +95,14 @@ module Coupler
         # setup scratch database
         if @options.use_existing_scratch
           @cache.auto_fill!   if @use_cache
-          @scratch.set_table_and_key(@resource.table, @resource.primary_key)
+          @scratch.set_table_and_key(@name, @resource.primary_key)
         else
           schema = []
           @field_list.each do |field|
             schema << "#{field} #{@field_info[field]}"
           end
-          @scratch.drop_table(@resource.table)
-          @scratch.create_table(@resource.table, schema, @index_on)
+          @scratch.drop_table(@name)
+          @scratch.create_table(@name, schema, @index_on)
 
           # transform all records
           Coupler.logger.info("Scenario (#{name}): Transforming records")  if Coupler.logger

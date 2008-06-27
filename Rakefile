@@ -3,6 +3,7 @@ require 'rubygems'
 require 'rake'
 require 'spec'
 require 'spec/rake/spectask'
+include FileUtils
 
 desc "Run all specs"
 task :spec => :build
@@ -20,9 +21,15 @@ desc "Build project"
 task :build do
   srcdir  = File.dirname(__FILE__) + "/ext"
   destdir = File.dirname(__FILE__) + "/lib/coupler"
+  if !File.exist?(File.join(srcdir, "Makefile"))
+    prev = pwd
+    cd srcdir
+    load File.join(srcdir, "extconf.rb")
+    cd pwd
+  end
   `make -C #{srcdir}`
   if File.exist?(fn = "#{srcdir}/cache.so") || File.exist?(fn = "#{srcdir}/cache.bundle")
-    FileUtils.copy(fn, destdir)
+    copy(fn, destdir)
   else
     raise "can't find cache library"
   end
