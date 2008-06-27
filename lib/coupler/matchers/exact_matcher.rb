@@ -1,11 +1,11 @@
 module Coupler
   module Matchers
     class ExactMatcher
-      attr_reader :field, :true_score, :false_score
+      attr_reader :fields, :true_score, :false_score
 
       def initialize(spec, options)
         @options     = options
-        @field       = spec['field']
+        @fields      = spec['field'] ? [spec['field']] : spec['fields']
         @resource    = spec['resource']
         @false_score = spec['scores'] ? spec['scores'].first : 0
         @true_score  = spec['scores'] ? spec['scores'].last  : 100
@@ -16,11 +16,15 @@ module Coupler
         key = @resource.primary_key
 
         # calculate scores
-        last    = nil 
-        group   = []
-        offset  = 0
+        last   = nil 
+        group  = []
+        offset = 0
+        order  = @fields.join(", ")
+        columns = [key] + @fields
+        conditions = "WHERE #{@fields.collect { |f| "#{f} IS NOT NULL" }.join(" AND ")}"
         records = @resource.select({
-          :columns => [key, @field], :order => @field, :limit => @limit
+          :columns => columns, :order => order, 
+          :limit => @limit, :conditions => conditions 
         })
         while (true)
           row = records.next
@@ -28,14 +32,15 @@ module Coupler
             records.close
             offset += @limit
             records = @resource.select({
-              :columns => [key, @field], :order => @field,
-              :limit => @limit, :offset => offset
+              :columns => columns, :order => order, :offset => offset,
+              :limit => @limit, :conditions => conditions
             })
             row = records.next
             break if row.nil?
           end
-          id, value = row
-          if value == last && !value.nil?
+
+          id = row.shift
+          if row == last
             group.each do |gid|
               scores.add(id, gid, @true_score)
             end
@@ -43,7 +48,7 @@ module Coupler
           else
             group.clear
             group << id
-            last = value
+            last = row
           end
         end
         records.close

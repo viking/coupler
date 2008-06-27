@@ -17,6 +17,10 @@ Scenario: running sqlite3 scenarios with csv output
   And each record should match every 25th record with a score of 60
   And each record should match every 10th record with a score of 140
   And there should be no extra scores
+  And it should create the multi_exact_coupler.csv file
+  And every 75th record should match nothing
+  And each record should match every 50th record with a score of 100
+  And there should be no extra scores
 
 Scenario: running sqlite3 scenarios with no csv output
   Given the sqlite3 specification
@@ -30,6 +34,10 @@ Scenario: running sqlite3 scenarios with no csv output
   And each record should match every 50th record with a score of 160
   And each record should match every 25th record with a score of 60
   And each record should match every 10th record with a score of 140
+  And there should be no extra scores
+  And it should store scores in the multi_exact_coupler table
+  And every 75th record should match nothing
+  And each record should match every 50th record with a score of 100
   And there should be no extra scores
 
 Scenario: running sqlite3 scenarios while using an existing scratch database
@@ -46,4 +54,8 @@ Scenario: running sqlite3 scenarios while using an existing scratch database
   And each record should match every 50th record with a score of 160
   And each record should match every 25th record with a score of 60
   And each record should match every 10th record with a score of 140
+  And there should be no extra scores
+  And it should create the multi_exact_coupler.csv file
+  And every 75th record should match nothing
+  And each record should match every 50th record with a score of 100
   And there should be no extra scores

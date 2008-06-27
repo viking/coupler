@@ -1,13 +1,14 @@
 module Coupler
   module Matchers
     class DefaultMatcher
-      attr_reader :field
+      attr_reader :field 
       def initialize(spec, options)
         @options = options
         @field   = spec['field']
         @index   = spec['index']
         @formula = spec['formula']
         @cache   = spec['cache']
+
         self.instance_eval(<<-EOF, __FILE__, __LINE__ + 1)
           def score(scores)
             len  = @cache.count - 1

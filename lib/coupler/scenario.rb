@@ -30,7 +30,7 @@ module Coupler
       #       actual database.  i only care about field types that actually end up in the
       #       scratch database, so i'm not collecting types from the transformer
       #       arguments.
-      matcher_fields   = spec['matchers'].collect { |m| m['field'] }
+      matcher_fields   = spec['matchers'].collect { |m| m['field'] || m['fields'] }.flatten.uniq
       @resource_fields = [@primary_key] + matcher_fields.dup   # fields i need to pull from the main resource
       @field_list      = [@primary_key] + matcher_fields.dup   # fields that will end up in scratch
       @field_info      = @resource.columns(@field_list)
@@ -66,7 +66,8 @@ module Coupler
       spec['matchers'].each do |m|
         case m['type']
         when 'exact'
-          @index_on << m['field']
+          # << takes precedence over || because of the original semantics of <<
+          @index_on << (m['field'] || m['fields'])
         else
           @use_cache = true
         end

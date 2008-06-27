@@ -32,7 +32,7 @@ transformers:
     type: varchar(9)
 
 scenarios:
-  - name: ssn_coupler
+  - name: ssn_mysql_coupler
     type: self-join
     resource: coupler_test
     transformations:
@@ -46,7 +46,7 @@ scenarios:
     scoring:
       range: 100..100
       combining method: "mean"
-  - name: ssn_dob_coupler
+  - name: ssn_dob_mysql_coupler
     type: self-join
     resource: coupler_test
     transformations:
@@ -62,4 +62,18 @@ scenarios:
         scores: [40, 60]
     scoring:
       range: 60..160
+      combining method: sum
+  - name: multi_exact_mysql_coupler
+    type: self-join
+    resource: coupler_test
+    transformations:
+      - name: ssn
+        transformer: ssn_filter
+        arguments:
+          ssn: ssn
+    matchers:
+      - fields: [ssn, dob]
+        type: exact
+    scoring:
+      range: 100..100
       combining method: sum

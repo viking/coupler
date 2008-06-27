@@ -265,6 +265,11 @@ shared_examples_for "any adapter" do
       @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], %w{ssn})
     end
 
+    it "should create indices on multiple columns" do
+      @conn.should_receive(@query_method).with(%{CREATE INDEX foo_ssn_bar_idx ON foo (ssn, bar)}).and_return(@query_result)
+      @resource.create_table("foo", ["id int", "ssn varchar(9)", "bar datetime"], [%w{ssn bar}])
+    end
+
     it "should log its query" do
       @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE TABLE foo (id int, ssn varchar(9), bar datetime, PRIMARY KEY (id))")
       @logger.should_receive(:debug).with("Resource (#{@resource.name}): CREATE INDEX foo_ssn_idx ON foo (ssn)")

@@ -197,8 +197,15 @@ module Coupler
       end
       run_and_log_query("CREATE TABLE #{name} (#{fields.join(", ")})", true)
 
-      indices.each do |column|
-        run_and_log_query("CREATE INDEX #{name}_#{column}_idx ON #{name} (#{column})", true)
+      indices.each do |arg|
+        if arg.is_a?(Array)
+          columns = arg.join(", ")
+          cname   = arg.join("_")
+        else
+          columns = arg
+          cname   = arg
+        end
+        run_and_log_query("CREATE INDEX #{name}_#{cname}_idx ON #{name} (#{columns})", true)
       end
 
       @table = name

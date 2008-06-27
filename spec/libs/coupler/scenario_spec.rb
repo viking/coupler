@@ -424,6 +424,17 @@ describe Coupler::Scenario do
         s.run
       end
 
+      it "should set up indices properly for an exact matcher with multiple fields" do
+        @scratch.should_receive(:create_table).with(
+          "birth_all", ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"],
+          [%w{MomSSN MomDOB}]
+        )
+        s = create_scenario({
+          'matchers' => [{'fields' => %w{MomSSN MomDOB}, 'type' => 'exact'}]
+        })
+        s.run
+      end
+
       it "should not add fields to scratch that aren't needed" do
         baka = stub("some crappy transformer", :data_type => 'varchar(1337)', :transform => "123456789")
         Coupler::Transformer.stub!(:find).with('baka').and_return(baka)
