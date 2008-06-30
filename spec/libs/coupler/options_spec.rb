@@ -31,25 +31,45 @@ describe Coupler::Options do
       do_parse %w{foo.yml --db-limit=50000}
       @options.db_limit.should == 50000
     end
+
+    it "should set log_level to DEBUG" do
+      do_parse %w{foo.yml -v}
+      @options.log_level.should == Logger::DEBUG
+    end
+
+    it "should set log_file to foo.log" do
+      do_parse %w{foo.yml -f foo.log}
+      @options.log_file.should == "foo.log"
+    end
   end
 
-  it "should not use_existing_scratch by default" do
-    opts = Coupler::Options.new
-    opts.use_existing_scratch.should be_false
-  end
+  describe "default settings" do
+    before(:each) do
+      @opts = Coupler::Options.new
+    end
 
-  it "should not output csv's by default" do
-    opts = Coupler::Options.new
-    opts.csv_output.should be_false
-  end
+    it "should not use_existing_scratch" do
+      @opts.use_existing_scratch.should be_false
+    end
 
-  it "should have no filenames by default" do
-    opts = Coupler::Options.new
-    opts.filenames.should == []
-  end
+    it "should not output csv's" do
+      @opts.csv_output.should be_false
+    end
 
-  it "should have a db limit of 10000 by default" do
-    opts = Coupler::Options.new
-    opts.db_limit.should == 10000
+    it "should have no filenames" do
+      @opts.filenames.should == []
+    end
+
+    it "should have a db limit of 10000" do
+      @opts.db_limit.should == 10000
+    end
+
+    it "should have a log level of info" do
+      @opts.log_level.should == Logger::INFO
+    end
+
+    it "should have a log_file of log/runner.log" do
+      @opts.log_file.should == File.expand_path("log/runner.log")
+    end
   end
 end

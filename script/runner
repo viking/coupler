@@ -3,9 +3,9 @@
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'coupler'
 
-logger = Logger.new(File.dirname(__FILE__) + "/../log/runner.log")
-logger.level = Logger::DEBUG
+options        = Coupler::Options.parse(ARGV)
+logger         = Logger.new(options.log_file)
+logger.level   = options.log_level
 Coupler.logger = logger 
 
-options = Coupler::Options.parse(ARGV)
 Coupler::Runner.run(options)

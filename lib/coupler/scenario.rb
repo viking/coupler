@@ -94,9 +94,11 @@ module Coupler
 
         # setup scratch database
         if @options.use_existing_scratch
+          Coupler.logger.info("Scenario (#{name}): Using existing scratch database")  if Coupler.logger
           @cache.auto_fill!   if @use_cache
           @scratch.set_table_and_key(@name, @resource.primary_key)
         else
+          Coupler.logger.info("Scenario (#{name}): Setting up scratch database")  if Coupler.logger
           schema = []
           @field_list.each do |field|
             schema << "#{field} #{@field_info[field]}"
