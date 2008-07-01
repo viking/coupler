@@ -1,22 +1,35 @@
 module Coupler
   class Runner 
-    def self.run(options)
-      spec = YAML.load_file(options.filenames[0])
-      runner = self.new(spec, options)
-      runner.run_scenarios
+    class << self
+      def run(options)
+        spec = YAML.load_file(options.filenames[0])
+        runner = self.new(spec, options)
+        runner.run_scenarios
+      end
+
+      def transform(options)
+        spec = YAML.load_file(options.filenames[0])
+        runner = self.new(spec, options)
+        runner.transform
+      end
     end
 
     def initialize(spec, options)
       @options = options
-      scratch = scores = false
+      @scratch = @scores = nil
       @resources = spec['resources'].collect do |config|
-        scratch = true  if config['name'] == 'scratch'
-        scores  = true  if config['name'] == 'scores'
-        Coupler::Resource.new(config)
+        r = Coupler::Resource.new(config, @options)
+        case config['name']
+        when 'scratch'
+          @scratch = r
+        when 'scores'
+          @scores = r
+        end
+        r
       end
       # raise hell if there is no scratch or scores resource
-      raise "you must provide a scratch resource!"  unless scratch 
-      raise "you must provide a scores resource!"   unless scores
+      raise "you must provide a scratch resource!"  unless @scratch 
+      raise "you must provide a scores resource!"   unless @scores
 
       if spec['transformers']
         @transformers = spec['transformers'].collect do |config|
@@ -31,6 +44,28 @@ module Coupler
     def run_scenarios
       @scenarios.each do |scenario|
         scenario.run
+      end
+    end
+
+    def transform
+      setup_scratch_database  unless @options.use_existing_scratch
+      @scenarios.each do |scenario|
+        scenario.transform
+      end
+    end
+
+    def setup_scratch_database
+      schemas = Hash.new { |h, k| h[k] = {:fields => [], :indices => []} }
+      @scenarios.each do |scenario|
+        name   = scenario.resource.name
+        schema = scenario.scratch_schema
+        schemas[name][:fields]  |= schema[:fields]
+        schemas[name][:indices] |= schema[:indices]
+      end
+
+      schemas.each_pair do |name, schema|
+        @scratch.drop_table(name)
+        @scratch.create_table(name, schema[:fields], schema[:indices])
       end
     end
   end

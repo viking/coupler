@@ -43,7 +43,7 @@ module Coupler
         }, @options)
 
         @matchers.each do |matcher|
-          Coupler.logger.info("Scenario (#{name}): Matching on #{matcher.name}")  if Coupler.logger
+#          Coupler.logger.info("Scenario (#{name}): Matching on #{matcher.field}")  if Coupler.logger
           scores.record { |r| matcher.score(r) }
         end
 

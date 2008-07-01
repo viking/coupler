@@ -2,7 +2,7 @@ module Coupler
   class Scenario
     DEBUG = ENV['DEBUG']
 
-    attr_reader :name, :type
+    attr_reader :name, :type, :resource, :scratch_schema
     def initialize(spec, options)
       @options = options
       @name = spec['name']
@@ -51,7 +51,12 @@ module Coupler
       end if spec['transformations']
       @transform_buffer = []
 
-      # setup matchers
+      # setup matchers and scratch schema
+      @scratch_schema = {:fields => [], :indices => []}
+      @field_list.each do |field|
+        @scratch_schema[:fields] << "#{field} #{@field_info[field]}"
+      end
+
       @master_matcher = Coupler::Matchers::MasterMatcher.new({
         'field list'       => @field_list,
         'combining method' => spec['scoring']['combining method'],
@@ -61,13 +66,13 @@ module Coupler
         'scores'           => @scores,
         'name'             => @name 
       }, @options)
-      @index_on  = []
+
       @use_cache = false
       spec['matchers'].each do |m|
         case m['type']
         when 'exact'
           # << takes precedence over || because of the original semantics of <<
-          @index_on << (m['field'] || m['fields'])
+          @scratch_schema[:indices] << (m['field'] || m['fields'])
         else
           @use_cache = true
         end
@@ -79,77 +84,61 @@ module Coupler
       @limit = spec['limit']  # undocumented and untested, wee!
     end
 
+    def transform
+      Coupler.logger.info("Scenario (#{name}): Transforming records")  if Coupler.logger
+
+      @record_offset = 0
+      @num_records   = @limit ? @limit : @resource.count.to_i
+      record_set     = grab_records
+      while(true) do
+        record = record_set.next
+        if record.nil?
+          # grab next set of records, or quit
+          record_set.close
+          record_set = grab_records
+          if record_set 
+            record = record_set.next
+          else
+            break
+          end
+        end
+
+        record    = do_transformation(record)
+        record_id = record[0]
+
+        @transform_buffer << record
+        if @transform_buffer.length == @options.db_limit
+          @scratch.insert(@field_list, *@transform_buffer)  # save in database
+          @transform_buffer.clear
+        end
+      end
+      @scratch.insert(@field_list, *@transform_buffer)  unless @transform_buffer.empty?
+    end
+
     def run
       return  if @options.dry_run
-
-      @cache.clear
       Coupler.logger.info("Scenario (#{name}): Run start")  if Coupler.logger
 
-      case @type
-      when 'self-join'
-        # select records
-        @num_records   = @limit ? @limit : @resource.count.to_i
-        @record_offset = 0
-        record_set = grab_records
+      # setup scratch database
+      @scratch.set_table_and_key(@resource.name, @resource.primary_key)
+      @cache.clear
+      @cache.auto_fill!   if @use_cache
 
-        # setup scratch database
-        if @options.use_existing_scratch
-          Coupler.logger.info("Scenario (#{name}): Using existing scratch database")  if Coupler.logger
-          @cache.auto_fill!   if @use_cache
-          @scratch.set_table_and_key(@name, @resource.primary_key)
-        else
-          Coupler.logger.info("Scenario (#{name}): Setting up scratch database")  if Coupler.logger
-          schema = []
-          @field_list.each do |field|
-            schema << "#{field} #{@field_info[field]}"
-          end
-          @scratch.drop_table(@name)
-          @scratch.create_table(@name, schema, @index_on)
+      # now match!
+      Coupler.logger.info("Scenario (#{name}): Matching records")  if Coupler.logger
+      retval = @master_matcher.score
 
-          # transform all records
-          Coupler.logger.info("Scenario (#{name}): Transforming records")  if Coupler.logger
-          while(true) do
-            record = record_set.next
-            if record.nil?
-              # grab next set of records, or quit
-              record_set.close
-              record_set = grab_records
-              if record_set 
-                record = record_set.next
-              else
-                break
-              end
-            end
+      if DEBUG
+        puts "*** Cache summary ***"
+        puts "Fetches: #{@cache.fetches}"
+        puts "Misses:  #{@cache.misses}"
+      end
 
-            record    = do_transformation(record)
-            record_id = record[0]
-            @cache.add(record_id, record)   if @use_cache
-
-            @transform_buffer << record
-            if @transform_buffer.length == @options.db_limit
-              @scratch.insert(@field_list, *@transform_buffer)  # save in database
-              @transform_buffer.clear
-            end
-          end
-        end
-        @scratch.insert(@field_list, *@transform_buffer)  unless @transform_buffer.empty?
-
-        # now match!
-        Coupler.logger.info("Scenario (#{name}): Matching records")  if Coupler.logger
-        retval = @master_matcher.score
-
-        if DEBUG
-          puts "*** Cache summary ***"
-          puts "Fetches: #{@cache.fetches}"
-          puts "Misses:  #{@cache.misses}"
-        end
-
-        if @options.csv_output
-          FasterCSV.open("#{@name}.csv", "w") do |csv|
-            csv << %w{id1 id2 score}
-            retval.each do |id1, id2, score|
-              csv << [id1, id2, score]
-            end
+      if @options.csv_output
+        FasterCSV.open("#{@name}.csv", "w") do |csv|
+          csv << %w{id1 id2 score}
+          retval.each do |id1, id2, score|
+            csv << [id1, id2, score]
           end
         end
       end

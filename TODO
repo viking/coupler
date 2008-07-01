@@ -2,7 +2,6 @@ Short term
 - create stock Transformer classes
 - add range attribute to each matcher for fine-tuning
 - add ability for transformers to chain
-- add logger options to script/runner
 
 Long term
 - split up the transformation process into a separate script

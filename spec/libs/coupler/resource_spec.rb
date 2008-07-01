@@ -7,8 +7,8 @@ module ResourceHelper
     "birth_#{@@num-1}"
   end
 
-  def create_resource(options = {})
-    options = {
+  def create_resource(spec = {})
+    spec = {
       'connection' => {
         'adapter'  => 'sqlite3',
         'database' => 'db/birth.sqlite3',
@@ -18,9 +18,9 @@ module ResourceHelper
         'name' => 'birth_all',
         'primary_key' => 'ID'
       }
-    }.merge(options)
-    options['name'] ||= resource_name
-    Coupler::Resource.new(options)
+    }.merge(spec)
+    spec['name'] ||= resource_name
+    Coupler::Resource.new(spec, @options)
   end
 end
 
@@ -333,6 +333,28 @@ shared_examples_for "any adapter" do
     end
   end
 
+  describe "#select_with_refill" do
+    before(:each) do
+      @refill_set = stub("refillable set")
+      Coupler::Resource::RefillableSet.stub!(:new).and_return(@refill_set)
+    end
+
+    it "should create a RefillableSet and return it" do
+      Coupler::Resource::RefillableSet.should_receive(:new).with(
+        @resource, 10000, "SELECT birth_all.* FROM birth_all"
+      ).and_return(@refill_set)
+      @resource.select_with_refill(:columns => ["*"]).should == @refill_set
+    end
+
+    it "should respect the --db-limit option" do
+      @options.db_limit = 50000
+      Coupler::Resource::RefillableSet.should_receive(:new).with(
+        @resource, 50000, "SELECT birth_all.* FROM birth_all"
+      ).and_return(@refill_set)
+      @resource.select_with_refill(:columns => ["*"]).should == @refill_set
+    end
+  end
+
   describe "#columns" do
     it "should return a hash of types" do
       @resource.columns(%w{ssn dob}).should == {
@@ -349,6 +371,7 @@ describe Coupler::Resource do
   before(:each) do
     @result_set = stub("result set", :next => [], :close => nil)
     @logger = stub(Logger, :info => nil, :debug => nil, :add => nil)
+    @options = Coupler::Options.new
     Coupler::Resource::ResultSet.stub!(:new).and_return(@result_set)
     Coupler.stub!(:logger).and_return(@logger)
   end
@@ -581,71 +604,193 @@ end
 describe Coupler::Resource::ResultSet do
   describe "when initialized with a mysql result set" do
     before(:each) do
-      @mysql = stub(Mysql::Result, :close => nil)
-      @result_set = Coupler::Resource::ResultSet.new(@mysql, 'mysql')
+      @query_result = stub(Mysql::Result, :close => nil)
+      @result_type  = 'mysql'
     end
 
-    describe "#each" do
-      it "should iterate over each" do
-        block = Proc.new { "foo" }
-        @mysql.should_receive(:each).with(&block)
-        @result_set.each(&block)
-      end
-    end
-
-    describe "#next" do
-      it "should call fetch" do
-        @mysql.should_receive(:fetch).and_return([])
-        @result_set.next
-      end
-    end
-
-    describe "#close" do
-      it "should call close" do
-        @mysql.should_receive(:close)
-        @result_set.close
+    describe do
+      before(:each) do
+        @result_set = Coupler::Resource::ResultSet.new(@query_result, @result_type)
       end
 
-      it "should not close again" do
-        @result_set.close
-        @mysql.should_not_receive(:close)
-        @result_set.close
+      describe "#each" do
+        it "should iterate over each" do
+          block = Proc.new { "foo" }
+          @query_result.should_receive(:each).with(&block)
+          @result_set.each(&block)
+        end
+      end
+
+      describe "#next" do
+        it "should call fetch" do
+          @query_result.should_receive(:fetch).and_return([])
+          @result_set.next
+        end
+      end
+
+      describe "#close" do
+        it "should call close" do
+          @query_result.should_receive(:close)
+          @result_set.close
+        end
+
+        it "should not close again" do
+          @result_set.close
+          @query_result.should_not_receive(:close)
+          @result_set.close
+        end
       end
     end
   end
 
   describe "when initialized with a sqlite3 result set" do
     before(:each) do
-      @sqlite3 = stub(SQLite3::ResultSet, :each => nil, :next => {}, :close => nil)
-      @result_set = Coupler::Resource::ResultSet.new(@sqlite3, 'sqlite3')
+      @query_result = stub(SQLite3::ResultSet, :each => nil, :next => {}, :close => nil)
+      @result_type  = 'sqlite3'
     end
 
-    describe "#each" do
-      it "should iterate over each" do
-        block = Proc.new { "foo" }
-        @sqlite3.should_receive(:each).with(&block)
-        @result_set.each(&block)
-      end
-    end
-
-    describe "#next" do
-      it "should call next" do
-        @sqlite3.should_receive(:next).and_return({})
-        @result_set.next
-      end
-    end
-
-    describe "#close" do
-      it "should call close" do
-        @sqlite3.should_receive(:close)
-        @result_set.close
+    describe do
+      before(:each) do
+        @result_set = Coupler::Resource::ResultSet.new(@query_result, @result_type)
       end
 
-      it "should not close again" do
-        @result_set.close
-        @sqlite3.should_not_receive(:close)
-        @result_set.close
+      describe "#each" do
+        it "should iterate over each" do
+          block = Proc.new { "foo" }
+          @query_result.should_receive(:each).with(&block)
+          @result_set.each(&block)
+        end
+      end
+
+      describe "#next" do
+        it "should call next" do
+          @query_result.should_receive(:next).and_return({})
+          @result_set.next
+        end
+      end
+
+      describe "#close" do
+        it "should call close" do
+          @query_result.should_receive(:close)
+          @result_set.close
+        end
+
+        it "should not close again" do
+          @result_set.close
+          @query_result.should_not_receive(:close)
+          @result_set.close
+        end
       end
     end
+  end
+end
+
+shared_examples_for "a refillable set with any adapter" do
+  describe "#next" do
+    it "should run the query the first time it's called" do
+      @resource.should_receive(:run_and_log_query).with("SELECT * FROM foo LIMIT 10000 OFFSET 0").and_return(@query_result)
+      @set.next
+    end
+
+    it "should fetch the next item and return it" do
+      @query_result.should_receive(@next_method).and_return(["blah"])
+      @set.next.should == ["blah"]
+    end
+
+    describe "when it's time to refill" do
+      before(:each) do
+        @query_result.stub!(@next_method).and_return(nil, ["blargh"])
+      end
+
+      it "should close the query result" do
+        @query_result.should_receive(:close)
+        @set.next
+      end
+
+      it "should query the database again, adjusting the offset accordingly" do
+        @resource.should_receive(:run_and_log_query).with("SELECT * FROM foo LIMIT 10000 OFFSET 10000").and_return(@query_result)
+        @set.next
+      end
+
+      it "should fetch the next record after re-filling and return it" do
+        @query_result.should_receive(@next_method).twice.and_return(nil, ["blargh"])
+        @set.next
+      end
+
+    end
+
+    describe "when there are no more records to fetch" do
+      before(:each) do
+        @query_result.stub!(@next_method).and_return(nil, nil)
+      end
+
+      it "should not attempt anymore refills" do
+        @set.next
+
+        @resource.should_not_receive(:run_and_log_query).and_return(@query_result)
+        @set.next.should be_nil
+      end
+
+      it "should close itself" do
+        @query_result.should_receive(:close).twice
+        @set.next
+      end
+    end
+  end
+end
+
+describe Coupler::Resource::RefillableSet do
+  before(:each) do
+    @query_result = stub("query result", :close => nil)
+    @resource = stub("parent resource", :adapter => 'mysql', :run_and_log_query => @query_result)
+  end
+
+  def create_set(parent, page_size, query)
+    Coupler::Resource::RefillableSet.new(parent, page_size, query)
+  end
+
+  it "should have a superclass of ResultSet" do
+    Coupler::Resource::RefillableSet.superclass.should == Coupler::Resource::ResultSet
+  end
+
+  it "should have a parent resource" do
+    set = create_set(@resource, 10000, "SELECT * FROM foo")
+    set.parent.should == @resource
+  end
+
+  it "should have a page size of 10000" do
+    set = create_set(@resource, 10000, "SELECT * FROM foo")
+    set.page_size.should == 10000
+  end
+
+  it "should have a query" do
+    set = create_set(@resource, 10000, "SELECT * FROM foo")
+    set.query.should == "SELECT * FROM foo"
+  end
+
+  it "should have a type" do
+    set = create_set(@resource, 10000, "SELECT * FROM foo")
+    set.type.should == 'mysql'
+  end
+
+  describe "when adapter is 'mysql'" do
+    before(:each) do
+      @next_method = :fetch
+      @set = create_set(@resource, 10000, "SELECT * FROM foo")
+      @query_result.stub!(@next_method).and_return(["blah"])
+    end
+
+    it_should_behave_like "a refillable set with any adapter"
+  end
+
+  describe "when adapter is 'sqlite3'" do
+    before(:each) do
+      @next_method = :next
+      @resource.stub!(:adapter).and_return('sqlite3')
+      @set = create_set(@resource, 10000, "SELECT * FROM foo")
+      @query_result.stub!(@next_method).and_return(["blah"])
+    end
+
+    it_should_behave_like "a refillable set with any adapter"
   end
 end

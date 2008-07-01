@@ -28,6 +28,40 @@ module Coupler
       end
     end
 
+    class RefillableSet < ResultSet
+      attr_reader :parent, :page_size, :query, :type
+      def initialize(parent, page_size, query)
+        @parent    = parent
+        @type      = parent.adapter
+        @page_size = page_size
+        @query     = query
+        @closed    = false 
+        @set       = nil
+        @offset    = 0
+      end
+
+      alias :next_without_refilling :next
+      def next
+        return nil  if @closed
+        refill!     if @set.nil?
+
+        record = next_without_refilling
+        if record.nil?
+          refill!
+          record = next_without_refilling
+          close if record.nil?
+        end
+        record
+      end
+
+      private
+        def refill!
+          @set.close  if @set
+          @set = @parent.send(:run_and_log_query, "#{@query} LIMIT #{@page_size} OFFSET #{@offset}")
+          @offset += @page_size
+        end
+    end
+
     @@resources = {}
 
     def self.find(name)
@@ -38,21 +72,22 @@ module Coupler
       @@resources.clear
     end
 
-    attr_reader :name, :configuration, :table, :primary_key
+    attr_reader :name, :configuration, :table, :primary_key, :adapter
 
-    def initialize(options = {})
-      @name = options['name']
+    def initialize(spec, options)
+      @options = options
+      @name    = spec['name']
       if @@resources.keys.include?(@name)
         raise "duplicate name"
       else
         @@resources[@name] = self
       end
-      @configuration = options['connection']
+      @configuration = spec['connection']
       @adapter = @configuration['adapter']
 
-      if options['table']
-        @table = options['table']['name']
-        @primary_key = options['table']['primary_key']
+      if spec['table']
+        @table = spec['table']['name']
+        @primary_key = spec['table']['primary_key']
       end
     end
 
@@ -103,20 +138,10 @@ module Coupler
     end
 
     def select(*args)
-      # FIXME: put WHERE automatically into conditions, dummy.
       options = args.extract_options!
-      columns = options[:columns]
-      columns.collect! { |c| c == "*" ? "#{@table}.*" : c }
-
-      columns = columns.nil? || columns.empty? ? columns = "*" : columns.join(", ")
-      conditions = options[:conditions] ? " #{options[:conditions]}"     : ""
-      limit      = options[:limit]      ? " LIMIT #{options[:limit]}"    : ""
-      offset     = options[:offset]     ? " OFFSET #{options[:offset]}"  : ""
-      order      = options[:order]      ? " ORDER BY #{options[:order]}" : ""
-      
-      qry = "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
-      result = run_and_log_query(qry)
-      retval = ResultSet.new(result, @adapter)
+      qry     = construct_query(options)
+      result  = run_and_log_query(qry)
+      retval  = ResultSet.new(result, @adapter)
 
       case args.first
       when nil, :all
@@ -126,6 +151,11 @@ module Coupler
         retval.close
         tmp
       end
+    end
+
+    def select_with_refill(options)
+      qry = construct_query(options)
+      RefillableSet.new(self, @options.db_limit, qry)
     end
 
     def insert(columns, *values_ary)
@@ -262,6 +292,20 @@ module Coupler
     end
 
     private
+      def construct_query(options)
+        # FIXME: put WHERE automatically into conditions, dummy.
+        columns = options[:columns]
+        columns.collect! { |c| c == "*" ? "#{@table}.*" : c }
+
+        columns = columns.nil? || columns.empty? ? columns = "*" : columns.join(", ")
+        conditions = options[:conditions] ? " #{options[:conditions]}"     : ""
+        limit      = options[:limit]      ? " LIMIT #{options[:limit]}"    : ""
+        offset     = options[:offset]     ? " OFFSET #{options[:offset]}"  : ""
+        order      = options[:order]      ? " ORDER BY #{options[:order]}" : ""
+        
+        "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
+      end
+
       def run_and_log_query(query, auto_close = false)
         Coupler.logger.debug("Resource (#{name}): #{query}")  if Coupler.logger
         res = case @adapter
