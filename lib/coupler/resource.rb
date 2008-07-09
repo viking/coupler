@@ -179,6 +179,23 @@ module Coupler
       run_and_log_query("UPDATE #{@table} SET #{str} WHERE #{@primary_key} = #{key}", true)
     end
 
+    # ugly ass template
+    @@multi_update_template = Erubis::Eruby.new(<<EOF)
+UPDATE <%= @table %> SET
+<% columns.each_with_index do |colname, i| -%>
+  <%= colname %> = CASE <%= @primary_key %>
+  <% keys.each_with_index do |key, j| -%>
+    WHEN <%= key %> THEN <%= (v = values[j][i]) ? v.inspect : "NULL" %>
+  <% end -%>
+  <%= (i == columns.length-1) ? "END" : "END," %>
+<% end -%>
+WHERE <%= @primary_key %> IN (<%= keys.join(", ") %>)
+EOF
+    def multi_update(keys, columns, values)
+      # I don't know about this, to be honest.
+      run_and_log_query(@@multi_update_template.result(binding), true)
+    end
+
     def update_all(query)
       run_and_log_query("UPDATE #{@table} SET #{query}", true)
     end
@@ -214,6 +231,7 @@ module Coupler
     end
 
     def create_table(name, columns, indices = [], auto_increment = false)
+      columns = columns.dup
       columns.collect! { |c| c.sub("bigint", "int").sub("BIGINT", "INT") }  if @adapter == 'sqlite3'
       primary = columns.shift
       key     = primary.split[0]

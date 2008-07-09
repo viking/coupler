@@ -4,12 +4,12 @@ describe Coupler::Runner do
   before(:each) do
     @options     = Coupler::Options.new
     @filenames   = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/family.yml")]
-    @result_set  = stub("result set", :next => nil)
+    @result_set  = stub("result set", :next => nil, :close => nil)
     @resources   = {
       :generic   => stub("generic resource", :name => 'generic'),
-      :scratch   => stub("scratch resource", :name => 'scratch', :create_table => nil, :drop_table => nil),
-      :leetsauce => stub("leetsauce resource", :name => 'leetsauce', :select => @result_set),
-      :weaksauce => stub("weaksauce resource", :name => 'weaksauce'),
+      :scratch   => stub("scratch resource", :name => 'scratch', :create_table => nil, :drop_table => nil, :insert => nil),
+      :leetsauce => stub("leetsauce resource", :name => 'leetsauce', :select_with_refill => @result_set),
+      :weaksauce => stub("weaksauce resource", :name => 'weaksauce', :select_with_refill => @result_set),
     }
 
     %w{birth death scratch scores}.each do |name|
@@ -111,6 +111,9 @@ describe Coupler::Runner do
         :fields  => ["id int", "name varchar(10)", "age int"],
         :indices => []
       })
+      @resources[:weaksauce].stub!(:count).and_return(5)
+      @resources[:leetsauce].stub!(:count).and_return(5)
+      @result_set.stub!(:next).and_return([1], [2], [3], [4], [5], nil)
       @runner = Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
     end
 
@@ -137,7 +140,9 @@ describe Coupler::Runner do
 
     it "should create scratch tables based on all scenarios" do
       @resources[:scratch].should_receive(:create_table).with( 
-        'leetsauce', ["id int", "pants int", "shirts int", "name varchar(10)", "age int"], []
+        'leetsauce', 
+        ["id int", "pants int", "shirts int", "name varchar(10)", "age int"],
+        []
       )
       @runner.transform
     end
@@ -145,11 +150,14 @@ describe Coupler::Runner do
     it "should create two scratch tables if there are two different total resources" do
       @scenario_2.stub!(:resource).and_return(@resources[:weaksauce])
       @resources[:scratch].should_receive(:create_table).with( 
-        'leetsauce', ["id int", "pants int", "shirts int", "name varchar(10)"], []
+        'leetsauce', 
+        ["id int", "pants int", "shirts int", "name varchar(10)"],
+        []
       )
       @resources[:scratch].should_receive(:create_table).with( 
         'weaksauce', ["id int", "name varchar(10)", "age int"], []
       )
+      @result_set.stub!(:next).and_return([1])
       @runner.transform
     end
 
@@ -163,8 +171,16 @@ describe Coupler::Runner do
 #      end
 
     it "should prep the scratch resource by inserting id's" do
-      pending("refilling ResultSet")
-      @resources[:leetsauce].should_receive(:select).with
+      @resources[:leetsauce].should_receive(:select_with_refill).with(:columns => %w{id}).and_return(@result_set)
+      @resources[:scratch].should_receive(:insert).with(%w{id}, [1], [2], [3], [4], [5])
+      @runner.transform
+    end
+
+    it "should insert id's according to the --db_limit option" do
+      @options.db_limit = 3
+      @resources[:scratch].should_receive(:insert).with(%w{id}, [1], [2], [3])
+      @resources[:scratch].should_receive(:insert).with(%w{id}, [4], [5])
+      @runner.transform
     end
     
     it "should call transform on each scenario" do

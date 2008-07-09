@@ -7,7 +7,7 @@ describe Coupler::Scenario do
 
     @options = Coupler::Options.new
     @resources = {
-      :scratch => stub('scratch resource', :insert => nil, :set_table_and_key => nil),
+      :scratch => stub('scratch resource', :insert => nil, :multi_update => nil, :set_table_and_key => nil),
       :scores  => stub('scores resources'),
       :birth   => stub('birth resource', {
         :table => "birth_all", :primary_key => "ID", :name => 'birth',
@@ -265,10 +265,9 @@ describe Coupler::Scenario do
       do_xform
     end
 
-    it "should select all needed fields for 10000 records at a time" do
+    it "should select all needed fields" do
       @resources[:birth].should_receive(:select).with({
-        :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-        :limit => 10000, :offset => 0
+        :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID", :limit => 10000, :offset => 0
       }).and_return(@result)
       do_xform
     end
@@ -318,7 +317,7 @@ describe Coupler::Scenario do
       EOF
     end
 
-    it "should select 10000 more records if it runs out" do
+    it "should select more records if it runs out" do
       results = [
         stub("first 10000", :close => nil),
         stub("second 10000", :close => nil)
@@ -336,19 +335,6 @@ describe Coupler::Scenario do
       do_xform
     end
 
-    it "should insert at most 10000 records into scratch at a time" do
-      # this is a crappy way to test this
-      scenario = create_scenario
-      buff = scenario.instance_variable_get("@transform_buffer")
-      buff.stub!(:length).and_return(10000)  # hackery
-      fields = %w{ID MomSSN MomDOB}
-
-      @xrecords.each do |xrecord|
-        @resources[:scratch].should_receive(:insert).with(fields, xrecord)
-      end
-      scenario.transform
-    end
-
     it "should transform all records" do
       @ssn_filter.should_receive(:transform).with('ssn' => '123456789').exactly(3).times.and_return('123456789')
       @date_changer.should_receive(:transform).with('date' => @date_1).twice.and_return(@date_1.to_s)
@@ -356,39 +342,50 @@ describe Coupler::Scenario do
       do_xform
     end
 
-    it "should insert the transformed records into scratch" do
-      @resources[:scratch].should_receive(:insert).with(%w{ID MomSSN MomDOB}, *@xrecords)
+    it "should update scratch with the transformed records" do
+      @resources[:scratch].should_receive(:multi_update).with([1, 2, 3, 4], %w{ID MomSSN MomDOB}, @xrecords)
       do_xform
     end
 
-    describe "when --db-limit 50000" do
+    describe "with --db-limit 2" do
       before(:each) do
-        @options.db_limit = 50000
+        @options.db_limit = 2
+
+        @result1 = stub("first result set", :close => nil)
+        @result1.stub!(:next).and_return(@records[0], @records[1], nil)
+        @result2 = stub("second result set", :close => nil)
+        @result2.stub!(:next).and_return(@records[2], @records[3], nil)
+
         @resources[:birth].stub!(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 50000, :offset => 0
-        }).and_return(@result)
+          :limit => 2, :offset => 0
+        }).and_return(@result1)
+        @resources[:birth].stub!(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 2, :offset => 2
+        }).and_return(@result2)
       end
 
-      it "should select 50000 records at a time" do
+      it "should select 2 records at a time" do
         @resources[:birth].should_receive(:select).with({
           :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 50000, :offset => 0
-        }).and_return(@result)
+          :limit => 2, :offset => 0
+        }).and_return(@result1)
+        @resources[:birth].should_receive(:select).with({
+          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
+          :limit => 2, :offset => 2
+        }).and_return(@result2)
         do_xform
       end
 
-      it "should insert at most 50000 records into scratch at a time when --db-limit 50000" do
-        # this is a crappy way to test this
-        scenario = create_scenario
-        buff = scenario.instance_variable_get("@transform_buffer")
-        buff.stub!(:length).and_return(50000)  # hackery
-        fields = %w{ID MomSSN MomDOB}
-
-        @xrecords.each do |xrecord|
-          @resources[:scratch].should_receive(:insert).with(fields, xrecord)
-        end
-        scenario.transform
+      it "should update scratch with at most 2 records at a time" do
+        @resources[:scratch].should_receive(:multi_update).with(
+          [1, 2], %w{ID MomSSN MomDOB}, @xrecords[0..1]
+        )
+        @resources[:scratch].should_receive(:multi_update).with(
+          [3, 4], %w{ID MomSSN MomDOB}, @xrecords[2..3]
+        )
+        do_xform
       end
     end
   end

@@ -8,6 +8,7 @@ require 'rubygems'
 require 'sqlite3'
 require 'mysql'
 require 'fastercsv'
+require 'erubis'
 
 require 'progress'
 require 'coupler/extensions'

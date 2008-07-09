@@ -55,17 +55,34 @@ module Coupler
     end
 
     def setup_scratch_database
-      schemas = Hash.new { |h, k| h[k] = {:fields => [], :indices => []} }
+      schemas = Hash.new { |h, k| h[k] = {:fields => [], :indices => [], :resource => nil} }
       @scenarios.each do |scenario|
-        name   = scenario.resource.name
-        schema = scenario.scratch_schema
-        schemas[name][:fields]  |= schema[:fields]
-        schemas[name][:indices] |= schema[:indices]
+        resource = scenario.resource
+        schema   = scenario.scratch_schema
+        name     = resource.name
+        schemas[name][:resource] ||= resource
+        schemas[name][:fields]    |= schema[:fields]
+        schemas[name][:indices]   |= schema[:indices]
       end
 
       schemas.each_pair do |name, schema|
         @scratch.drop_table(name)
         @scratch.create_table(name, schema[:fields], schema[:indices])
+
+        # insert ids
+        field = schema[:fields].first.split.first   # id int; ugly :/
+        res   = schema[:resource].select_with_refill(:columns => [field])
+        
+        total = schema[:resource].count.to_i
+        ids   = Array.new([total, @options.db_limit].min)
+        while total > 0
+          len = [total, @options.db_limit].min
+          len.times { |i| ids[i] = res.next }
+          @scratch.insert([field], *ids)
+          total -= len
+          ids.clear
+        end
+        res.close
       end
     end
   end

@@ -60,6 +60,40 @@ shared_examples_for "any adapter" do
     end
   end
 
+  describe "#multi_update" do
+    it "should run: UPDATE birth_all SET foo = CASE ID ... END WHERE ID IN (...)" do
+      @conn.should_receive(@query_method).with(<<EOF).and_return(@query_result)
+UPDATE birth_all SET
+  foo = CASE ID
+    WHEN 1 THEN "bar"
+    WHEN 2 THEN "baz"
+  END,
+  bar = CASE ID
+    WHEN 1 THEN 123
+    WHEN 2 THEN 456
+  END
+WHERE ID IN (1, 2)
+EOF
+      @resource.multi_update([1, 2], %w{foo bar}, [['bar', 123], ['baz', 456]])
+    end
+
+    it "should convert nils to NULLs" do
+      @conn.should_receive(@query_method).with(<<EOF).and_return(@query_result)
+UPDATE birth_all SET
+  foo = CASE ID
+    WHEN 1 THEN "bar"
+    WHEN 2 THEN NULL
+  END,
+  bar = CASE ID
+    WHEN 1 THEN NULL
+    WHEN 2 THEN 456
+  END
+WHERE ID IN (1, 2)
+EOF
+      @resource.multi_update([1, 2], %w{foo bar}, [['bar', nil], [nil, 456]])
+    end
+  end
+
   describe "#update_all" do
     it "should run: UPDATE birth_all SET foo = bar" do
       @conn.should_receive(@query_method).with("UPDATE birth_all SET foo = bar").and_return(@query_result)

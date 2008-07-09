@@ -49,7 +49,6 @@ module Coupler
         info['transformer'] = t
         @transformations[name] = info
       end if spec['transformations']
-      @transform_buffer = []
 
       # setup matchers and scratch schema
       @scratch_schema = {:fields => [], :indices => []}
@@ -90,6 +89,8 @@ module Coupler
       @record_offset = 0
       @num_records   = @limit ? @limit : @resource.count.to_i
       record_set     = grab_records
+      idbuf  = []
+      valbuf = []
       while(true) do
         record = record_set.next
         if record.nil?
@@ -103,16 +104,21 @@ module Coupler
           end
         end
 
-        record    = do_transformation(record)
-        record_id = record[0]
+        record = do_transformation(record)
 
-        @transform_buffer << record
-        if @transform_buffer.length == @options.db_limit
-          @scratch.insert(@field_list, *@transform_buffer)  # save in database
-          @transform_buffer.clear
+        idbuf  << record[0]
+        valbuf << record
+        if idbuf.length == @options.db_limit
+          @scratch.multi_update(idbuf, @field_list, valbuf)  # save in database
+          idbuf.clear
+          valbuf.clear
         end
       end
-      @scratch.insert(@field_list, *@transform_buffer)  unless @transform_buffer.empty?
+      unless idbuf.empty?
+        @scratch.multi_update(idbuf, @field_list, valbuf)  # save in database
+        idbuf.clear
+        valbuf.clear
+      end
     end
 
     def run
