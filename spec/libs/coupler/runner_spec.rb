@@ -59,81 +59,108 @@ describe Coupler::Runner do
     end
   end
 
+  def create_runner
+    Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
+  end
+
+  it "should create a new resource for each item in 'resources'" do
+    @resources.each_pair do |name, obj|
+      Coupler::Resource.should_receive(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
+    end
+    create_runner
+  end
+
+  it "should create a new transformer for each item in 'transformers'" do
+    %w{foo_filter bar_bender}.each do |name|
+      Coupler::Transformer.should_receive(:new).with(
+        hash_including('name' => name)
+      ).and_return(@transformers[name.to_sym])
+    end
+    create_runner
+  end
+
+  it "should create a new scenario for each item in 'scenarios'" do
+    @scenarios.each_pair do |name, obj|
+      Coupler::Scenario.should_receive(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
+    end
+    create_runner
+  end
+
+  it "should require a scratch database resource" do
+    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
+    lambda { create_runner }.should raise_error
+  end
+
+  it "should require a scores database resource" do
+    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scores.yml")]
+    lambda { create_runner }.should raise_error
+  end
+
+  it "should not freak if there are no transformers" do
+    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")]
+    lambda { create_runner }.should_not raise_error
+  end
+
   describe ".run" do
-    def do_run
+    before(:each) do
       @options.filenames = @filenames
+      @runner = stub("runner", :run => nil)
+      Coupler::Runner.stub!(:new).and_return(@runner)
+    end
+
+    it "should create a new Runner" do 
+      Coupler::Runner.should_receive(:new).with(YAML.load_file(@filenames[0]), @options).and_return(@runner)
       Coupler::Runner.run(@options)
     end
 
-    it "should accept a filename as an argument" do
-      do_run
+    it "should run the runner" do
+      @runner.should_receive(:run)
+      Coupler::Runner.run(@options)
+    end
+    
+    it "should pass spec filenames that end in .erb through erubis" do
+      # erb rendered version is the same as non-erb version
+      spec = YAML.load_file(@filenames.first)
+      @filenames.first << '.erb'
+      Coupler::Runner.should_receive(:new).with(spec, @options).and_return(@runner)
+      Coupler::Runner.run(@options)
     end
 
-    it "should create a new resource for each item in 'resources'" do
-      @resources.each_pair do |name, obj|
-        Coupler::Resource.should_receive(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
-      end
-      do_run
+    it "should accept a specification hash" do
+      spec = YAML.load_file(@filenames.first)
+      spec['resources'][0]['table']['name'] = "leetasaurus"
+      Coupler::Runner.should_receive(:new).with(spec, @options).and_return(@runner)
+      Coupler::Runner.run(spec, @options)
     end
+  end
 
-    it "should create a new transformer for each item in 'transformers'" do
-      %w{foo_filter bar_bender}.each do |name|
-        Coupler::Transformer.should_receive(:new).with(
-          hash_including('name' => name)
-        ).and_return(@transformers[name.to_sym])
-      end
-      do_run
+  describe "#run" do
+    before(:each) do
+      @runner = Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
     end
-
-    it "should create a new scenario for each item in 'scenarios'" do
-      @scenarios.each_pair do |name, obj|
-        Coupler::Scenario.should_receive(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
-      end
-      do_run
-    end
-
     it "should run each scenario" do
       @scenarios.values.each do |scenario|
         scenario.should_receive(:run).and_return(@scores)
       end
-      do_run
-    end
-
-    it "should require a scratch database resource" do
-      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
-      lambda { do_run }.should raise_error
-    end
-
-    it "should require a scores database resource" do
-      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scores.yml")]
-      lambda { do_run }.should raise_error
-    end
-
-    it "should not freak if there are no transformers" do
-      @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")]
-      lambda { do_run }.should_not raise_error
+      @runner.run
     end
   end
 
   describe ".transform" do
     before(:each) do
+      @options.filenames = @filenames
       @runner = stub("runner", :transform => nil)
       Coupler::Runner.stub!(:new).and_return(@runner)
     end
 
-    def do_xform
-      @options.filenames = @filenames
-      Coupler::Runner.transform(@options)
-    end
-
     it "should create a new Runner" do 
       Coupler::Runner.should_receive(:new).with(YAML.load_file(@filenames[0]), @options).and_return(@runner)
-      do_xform
+      Coupler::Runner.transform(@options)
     end
 
     it "should call transform on the runner" do
       @runner.should_receive(:transform)
-      do_xform
+      Coupler::Runner.transform(@options)
     end
   end
 

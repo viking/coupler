@@ -16,7 +16,7 @@ module ResourceHelper
       },
       'table' => {
         'name' => 'birth_all',
-        'primary_key' => 'ID'
+        'primary key' => 'ID'
       }
     }.merge(spec)
     spec['name'] ||= resource_name

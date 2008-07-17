@@ -108,7 +108,7 @@ module Coupler
 
       if spec['table']
         @table = spec['table']['name']
-        @primary_key = spec['table']['primary_key']
+        @primary_key = spec['table']['primary key']
       end
     end
 

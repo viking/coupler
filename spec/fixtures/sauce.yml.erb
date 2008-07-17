@@ -1,33 +1,15 @@
 resources:
-  - name: leetsauce
+  <% %w{leetsauce weaksauce mayhem scratch scores}.each do |name| %>
+  - name: <%= name %>
     connection:
       adapter: sqlite3
-      database: db/leetsauce.sql
+      database: db/<%= name %>.sql
+    <% unless %w{scratch scores}.include?(name) %>
     table:
       name: records
       primary key: id
-  - name: weaksauce
-    connection:
-      adapter: sqlite3
-      database: db/weaksauce.sql
-    table:
-      name: records
-      primary key: id
-  - name: mayhem
-    connection:
-      adapter: sqlite3
-      database: db/mayhem.sql
-    table:
-      name: records
-      primary key: id
-  - name: scratch
-    connection:
-      adapter: sqlite3
-      database: db/scratch.sql
-  - name: scores
-    connection:
-      adapter: sqlite3
-      database: db/scores.sql
+    <% end %>
+  <% end %>
 
 transformers:
   functions:

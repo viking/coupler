@@ -6,7 +6,7 @@ resources:
       timeout: 3000
     table: 
       name: records
-      primary_key: ID
+      primary key: ID
   - name: scratch
     connection:
       adapter: mysql

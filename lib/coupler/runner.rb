@@ -1,17 +1,29 @@
 module Coupler
   class Runner 
     class << self
-      def run(options)
-        spec = YAML.load_file(options.filenames[0])
-        runner = self.new(spec, options)
-        runner.run_scenarios
+      def run(*args)
+        perform(:run, args)
       end
 
-      def transform(options)
-        spec = YAML.load_file(options.filenames[0])
-        runner = self.new(spec, options)
-        runner.transform
+      def transform(*args)
+        perform(:transform, args)
       end
+
+      private
+        def perform(action, args)
+          options = args.pop
+          spec    = args.first
+          unless spec
+            filename = options.filenames.first
+            if filename =~ /\.erb$/
+              spec = YAML.load(Erubis::Eruby.new(File.read(filename)).result(binding))
+            else
+              spec = YAML.load_file(filename)
+            end
+          end
+          runner = self.new(spec, options)
+          runner.send(action)
+        end
     end
 
     def initialize(spec, options)
@@ -50,7 +62,7 @@ module Coupler
       @scenarios = spec['scenarios'].collect { |config| Coupler::Scenario.new(config, @options) }
     end
 
-    def run_scenarios
+    def run
       @scenarios.each do |scenario|
         scenario.run
       end
