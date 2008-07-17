@@ -1,42 +1,43 @@
 resources:
-  - name: birth
+  - name: leetsauce
     connection:
       adapter: sqlite3
-      database: db/birth.sql
-      timeout: 3000
-    table: birth_all
-  - name: death
+      database: db/leetsauce.sql
+    table: leetzors
+  - name: weaksauce
     connection:
       adapter: sqlite3
-      database: db/death.sql
-      timeout: 3000
-    table: death_all
+      database: db/weaksauce.sql
+    table: weakzors
   - name: scratch
     connection:
       adapter: sqlite3
       database: db/scratch.sql
-      timeout: 3000
   - name: scores
     connection:
       adapter: sqlite3
       database: db/scores.sql
-      timeout: 3000
 
 scenarios:
-  - name: family_ssn
+  - name: leetsauce_foo
     type: self-join
-    resource: birth
+    resource: leetsauce
     matchers:
-      - field: MomSSN
-        formula: &equal_formula "(!a.nil? && a == b) ? 100 : 0"
+      - fields: [foo, bar]
+        type: exact
 
-  - name: family_name
+  - name: leetsauce_bar
     type: self-join
-    resource: birth
+    resource: weaksauce
     matchers:
-      - field: MomNameMaidenLast
-        formula: *equal_formula 
-      - field: MomNameFirst
-        formula: *equal_formula 
-      - field: MomDOB
-        formula: *equal_formula
+      - fields: [foo, zoidberg]
+        type: exact
+  
+  - name: weaksauce_foo
+    type: self-join
+    resource: weaksauce
+    matchers:
+      - field: foo
+        type: exact
+      - field: nixon
+        type: exact

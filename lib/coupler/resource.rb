@@ -62,6 +62,27 @@ module Coupler
         end
     end
 
+    class InsertBuffer
+      def initialize(parent, page_size, columns)
+        @parent    = parent
+        @columns   = columns
+        @page_size = page_size
+        @buffer    = Buffer.new(page_size)
+      end
+
+      def <<(record)
+        flush!  if @buffer.full?
+        @buffer << record
+      end
+
+      def flush!
+        unless @buffer.empty?
+          @parent.insert(@columns, *@buffer.data)
+          @buffer.flush!
+        end
+      end
+    end
+
     @@resources = {}
 
     def self.find(name)
@@ -139,23 +160,23 @@ module Coupler
 
     def select(*args)
       options = args.extract_options!
+      refill  = options.delete(:auto_refill)
       qry     = construct_query(options)
-      result  = run_and_log_query(qry)
-      retval  = ResultSet.new(result, @adapter)
+      if refill
+        RefillableSet.new(self, @options.db_limit, qry)
+      else
+        result  = run_and_log_query(qry)
+        retval  = ResultSet.new(result, @adapter)
 
-      case args.first
-      when nil, :all
-        retval
-      when :first
-        tmp = retval.next
-        retval.close
-        tmp
+        case args.first
+        when nil, :all
+          retval
+        when :first
+          tmp = retval.next
+          retval.close
+          tmp
+        end
       end
-    end
-
-    def select_with_refill(options)
-      qry = construct_query(options)
-      RefillableSet.new(self, @options.db_limit, qry)
     end
 
     def insert(columns, *values_ary)
@@ -170,6 +191,10 @@ module Coupler
           run_and_log_query("INSERT INTO #{@table} (#{columns.join(", ")}) VALUES(#{values.collect { |v| v ? v.inspect : 'NULL' }.join(", ")})", true)
         end
       end
+    end
+
+    def insert_buffer(columns)
+      InsertBuffer.new(self, @options.db_limit, columns)
     end
 
     def update(key, columns, values)

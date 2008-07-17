@@ -365,27 +365,27 @@ EOF
       @conn.should_receive(@query_method).with("SELECT ID, birth_all.* FROM birth_all").and_return(@query_result)
       @resource.select(:columns => ["ID", "*"])
     end
-  end
 
-  describe "#select_with_refill" do
-    before(:each) do
-      @refill_set = stub("refillable set")
-      Coupler::Resource::RefillableSet.stub!(:new).and_return(@refill_set)
-    end
+    describe "when refilling" do
+      before(:each) do
+        @refill_set = stub("refillable set")
+        Coupler::Resource::RefillableSet.stub!(:new).and_return(@refill_set)
+      end
 
-    it "should create a RefillableSet and return it" do
-      Coupler::Resource::RefillableSet.should_receive(:new).with(
-        @resource, 10000, "SELECT birth_all.* FROM birth_all"
-      ).and_return(@refill_set)
-      @resource.select_with_refill(:columns => ["*"]).should == @refill_set
-    end
+      it "should create a RefillableSet and return it" do
+        Coupler::Resource::RefillableSet.should_receive(:new).with(
+          @resource, 10000, "SELECT birth_all.* FROM birth_all"
+        ).and_return(@refill_set)
+        @resource.select(:columns => ["*"], :auto_refill => true).should == @refill_set
+      end
 
-    it "should respect the --db-limit option" do
-      @options.db_limit = 50000
-      Coupler::Resource::RefillableSet.should_receive(:new).with(
-        @resource, 50000, "SELECT birth_all.* FROM birth_all"
-      ).and_return(@refill_set)
-      @resource.select_with_refill(:columns => ["*"]).should == @refill_set
+      it "should respect the --db-limit option" do
+        @options.db_limit = 50000
+        Coupler::Resource::RefillableSet.should_receive(:new).with(
+          @resource, 50000, "SELECT birth_all.* FROM birth_all"
+        ).and_return(@refill_set)
+        @resource.select(:columns => ["*"], :auto_refill => true).should == @refill_set
+      end
     end
   end
 
@@ -397,6 +397,21 @@ EOF
       }
     end
   end
+
+  describe "#insert_buffer" do
+    it "should create and return an InsertBuffer" do
+      Coupler::Resource::InsertBuffer.should_receive(:new).with(@resource, 10000,
+        %w{id foo bar}).and_return(@insert_buffer)
+      @resource.insert_buffer(%w{id foo bar}).should == @insert_buffer
+    end
+
+    it "should respect the --db-limit options" do
+      @options.db_limit = 50000
+      Coupler::Resource::InsertBuffer.should_receive(:new).with(@resource, 50000,
+        %w{id foo bar}).and_return(@insert_buffer)
+      @resource.insert_buffer(%w{id foo bar}).should == @insert_buffer
+    end
+  end
 end
 
 describe Coupler::Resource do
@@ -404,9 +419,11 @@ describe Coupler::Resource do
 
   before(:each) do
     @result_set = stub("result set", :next => [], :close => nil)
+    @insert_buffer = stub("insert buffer")
     @logger = stub(Logger, :info => nil, :debug => nil, :add => nil)
     @options = Coupler::Options.new
     Coupler::Resource::ResultSet.stub!(:new).and_return(@result_set)
+    Coupler::Resource::InsertBuffer.stub!(:new).and_return(@insert_buffer)
     Coupler.stub!(:logger).and_return(@logger)
   end
 
@@ -826,5 +843,70 @@ describe Coupler::Resource::RefillableSet do
     end
 
     it_should_behave_like "a refillable set with any adapter"
+  end
+end
+
+describe Coupler::Resource::InsertBuffer do
+  before(:each) do
+    @resource = stub("parent resource", :adapter => 'mysql', :insert => nil)
+    @buffer   = stub(Buffer, :full? => false, :empty? => false, :data => ["blah"], :flush! => nil)
+    @buffer.stub!(:<<).and_return(@buffer)
+    Buffer.stub!(:new).and_return(@buffer)
+  end
+
+  def create_buffer(parent, page_size, columns)
+    Coupler::Resource::InsertBuffer.new(parent, page_size, columns)
+  end
+
+  it "should create a Buffer object" do
+    Buffer.should_receive(:new).with(100).and_return(@buffer)
+    create_buffer(@resource, 100, %w{id foo bar})
+  end
+
+  describe "#<<" do
+    before(:each) do
+      @insert_buffer = create_buffer(@resource, 5, %w{id foo bar})
+    end
+
+    it "should call Buffer#<<" do
+      @buffer.should_receive(:<<).with([1, 2, 3]).and_return(@buffer)
+      @insert_buffer << [1, 2, 3]
+    end
+
+    describe "when buffer is full" do
+      before(:each) do
+        @records = [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5, 6], [5, 6, 7]]
+        @buffer.stub!(:data).and_return(@records)
+        @buffer.stub!(:full?).and_return(true)
+      end
+
+      it "should perform an insert, then flush the buffer" do
+        @resource.should_receive(:insert).with(%w{id foo bar}, *@records).ordered
+        @buffer.should_receive(:flush!).ordered
+        @insert_buffer << [6, 7, 8]
+      end
+    end
+  end
+
+  describe "#flush!" do
+    before(:each) do
+      @insert_buffer = create_buffer(@resource, 5, %w{id foo bar})
+      @records = [[1, 2, 3], [2, 3, 4], [3, 4, 5], [4, 5, 6], [5, 6, 7]]
+      @buffer.stub!(:data).and_return(@records)
+      @buffer.stub!(:empty?).and_return(false)
+    end
+
+    it "should perform an insert, then flush the buffer" do
+      @resource.should_receive(:insert).with(%w{id foo bar}, *@records).ordered
+      @buffer.should_receive(:flush!).ordered
+      @insert_buffer.flush!
+    end
+
+    it "should not do anything if the buffer is empty" do
+      @buffer.stub!(:empty?).and_return(true)
+      @resource.should_not_receive(:insert)
+      @buffer.should_not_receive(:flush!)
+      @insert_buffer.flush!
+    end
   end
 end

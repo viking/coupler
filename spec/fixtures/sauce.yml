@@ -9,6 +9,15 @@ resources:
       adapter: sqlite3
       database: db/weaksauce.sql
     table: weakzors
+  - name: mayhem
+    connection:
+      adapter: sqlite3
+      database: db/mayhem.sql
+    table: demolition
+  - name: scratch
+    connection:
+      adapter: sqlite3
+      database: db/scratch.sql
   - name: scores
     connection:
       adapter: sqlite3
@@ -46,7 +55,7 @@ transformers:
           leela: nixon
     weaksauce:
       - field: foo
-        function: foo
+        function: foo_filter
         arguments:
           string: foo
 
@@ -60,7 +69,7 @@ scenarios:
 
   - name: leetsauce_bar
     type: self-join
-    resource: weaksauce
+    resource: leetsauce
     matchers:
       - fields: [foo, zoidberg]
         type: exact
@@ -72,4 +81,13 @@ scenarios:
       - field: foo
         type: exact
       - field: nixon
+        type: exact
+
+  - name: utter_mayhem
+    type: self-join
+    resource: mayhem
+    matchers:
+      - field: pants
+        type: exact
+      - field: shirt
         type: exact

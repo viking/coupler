@@ -1,8 +1,11 @@
 Short term
+- add support for matching different tables
+- make runner a singleton; all classes get options from it
+
+Long term
+- add a probabilistic helper script to calculate statistics on given fields
 - create stock Transformer classes
 - add range attribute to each matcher for fine-tuning
 - add ability for transformers to chain
-
-Long term
-- split up the transformation process into a separate script
-- add a probabilistic helper script to calculate statistics on given fields
+- validate specifications with Kwalify
+- in the specification, use sequences instead of maps where more appropriate

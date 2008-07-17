@@ -18,14 +18,9 @@ describe Coupler::Scenario do
       Coupler::Resource.stub!(:find).with(name.to_s).and_return(obj)
     end
 
-    @result       = stub(Coupler::Resource::ResultSet, :close => nil)
-    @cache        = stub(Coupler::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
-    @ssn_filter   = stub("ssn transformer", :data_type => 'varchar(9)')
-    @date_changer = stub("date transformer", :data_type => 'varchar(10)')
-    @matcher      = stub(Coupler::Matchers::MasterMatcher, :add_matcher => nil)
-
-    Coupler::Transformer.stub!(:find).with('ssn_filter').and_return(@ssn_filter)
-    Coupler::Transformer.stub!(:find).with('date_changer').and_return(@date_changer)
+    @result  = stub(Coupler::Resource::ResultSet, :close => nil)
+    @cache   = stub(Coupler::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
+    @matcher = stub(Coupler::Matchers::MasterMatcher, :add_matcher => nil)
     Coupler::Matchers::MasterMatcher.stub!(:new).and_return(@matcher)
     Coupler::Cache.stub!(:new).and_return(@cache)
   end
@@ -35,15 +30,6 @@ describe Coupler::Scenario do
       name: family
       type: self-join
       resource: birth
-      transformations:
-        - name: MomSSN
-          transformer: ssn_filter
-          arguments: 
-            ssn: MomSSN
-        - name: MomDOB
-          transformer: date_changer
-          arguments:
-            date: MomDOB
       matchers:
         - field: MomSSN
           formula: '(!a.nil? && a == b) ? 100 : 0'
@@ -77,32 +63,6 @@ describe Coupler::Scenario do
     create_scenario
   end
 
-  it "should find the ssn_filter transformer" do
-    Coupler::Transformer.should_receive(:find).with('ssn_filter').and_return(@ssn_filter)
-    create_scenario
-  end
-
-  it "should find the date_change transformer" do
-    Coupler::Transformer.should_receive(:find).with('date_changer').and_return(@date_changer)
-    create_scenario
-  end
-
-  it "should not find a transformer if it does not relate to matchers" do
-    Coupler::Transformer.should_not_receive(:find).with('decepticon').and_return("foo")
-    s = create_scenario(<<-EOF)
-      transformations:
-        - name: foo
-          transformer: decepticon
-          arguments:
-            baz: bar
-    EOF
-  end
-
-  it "should raise an error if it can't find a transformer" do
-    Coupler::Transformer.stub!(:find).and_return(nil)
-    lambda { create_scenario }.should raise_error("can't find transformer 'ssn_filter'")
-  end
-
   it "should find the birth resource" do
     Coupler::Resource.should_receive(:find).with('birth').and_return(@resources[:birth])
     create_scenario
@@ -112,11 +72,6 @@ describe Coupler::Scenario do
     Coupler::Resource.stub!(:find).and_return(nil)
     lambda { create_scenario }.should raise_error("can't find resource 'birth'")
   end
-
-  it "should not raise an error if there are no transformations" do
-    create_scenario('transformations' => nil)
-  end
-
 
   it "should have a type of self-join" do
     s = create_scenario
@@ -161,22 +116,12 @@ describe Coupler::Scenario do
     create_scenario('guarantee' => 1000)
   end
 
-  it "should grab field info from the resource" do
-    @resources[:birth].should_receive(:columns).with(%w{ID MomSSN MomDOB}).and_return({
-      "ID" => "int", "MomSSN" => "varchar(9)", "MomDOB" => "date"
-    })
-    create_scenario
-  end
-
-  it "should have a scratch schema" do
+  it "should have a field list" do
     s = create_scenario
-    s.scratch_schema.should == {
-      :fields  => ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"],
-      :indices => []
-    }
+    s.field_list.should == %w{ID MomSSN MomDOB}
   end
 
-  it "should have indices for the scratch schema when using exact matchers" do
+  it "should have indices when using exact matchers" do
     s = create_scenario(<<-EOF)
       matchers:
         - field: MomSSN
@@ -184,210 +129,16 @@ describe Coupler::Scenario do
         - field: MomDOB
           type: exact
     EOF
-    s.scratch_schema.should == {
-      :fields  => ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"], 
-      :indices => ["MomDOB"]
-    }
+    s.indices.should == %w{MomDOB}
   end
 
-  it "should set up indices properly for an exact matcher with multiple fields" do
+  it "should have correct indices for an exact matcher with multiple fields" do
     s = create_scenario(<<-EOF)
       matchers:
         - fields: [MomSSN, MomDOB]
           type: exact
     EOF
-    s.scratch_schema.should == {
-      :fields  => ["ID int", "MomSSN varchar(9)", "MomDOB varchar(10)"],
-      :indices => [%w{MomSSN MomDOB}]
-    }
-  end
-
-  it "should not add fields to the scratch schema that aren't needed" do
-    baka = stub("some crappy transformer", :data_type => 'varchar(1337)')
-    Coupler::Transformer.stub!(:find).with('baka').and_return(baka)
-
-    s = create_scenario(<<-EOF)
-      transformations:
-        - name: MomSSN
-          transformer: baka
-          arguments:
-            field1: some_field
-            field2: some_other_field
-    EOF
-    s.scratch_schema.should == {
-      :fields  => ["ID int", "MomSSN varchar(1337)", "MomDOB date"],
-      :indices => []
-    }
-  end
-
-  describe "#transform" do
-    def do_xform(spec = {}, opts = {})
-      create_scenario(spec, opts).transform
-    end
-
-    before(:each) do
-      @date_1 = Date.parse('1982-4-15')
-      @date_2 = Date.parse('1980-9-4')
-      @records = [
-        [1, "123456789", @date_1],
-        [2, "999999999", @date_2],
-        [3, "123456789", @date_1],
-        [4, "123456789", @date_2],
-      ]
-      @xrecords = [
-        [1, "123456789", "1982-04-15"],
-        [2,  nil,        "1980-09-04"],
-        [3, "123456789", "1982-04-15"],
-        [4, "123456789", "1980-09-04"],
-      ]
-
-      # resource setup
-      @result.stub!(:next).and_return(*(@records + [nil]))
-      @resources[:birth].stub!(:select).with({
-        :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-        :limit => 10000, :offset => 0
-      }).and_return(@result)
-      @resources[:birth].stub!(:count).and_return(4)
-
-      # transformer setup
-      @ssn_filter.stub!(:transform).with('ssn' => '123456789').and_return('123456789')
-      @ssn_filter.stub!(:transform).with('ssn' => '999999999').and_return(nil)
-      @date_changer.stub!(:transform).with('date' => @date_1).and_return(@date_1.to_s)
-      @date_changer.stub!(:transform).with('date' => @date_2).and_return(@date_2.to_s)
-    end
-
-    def do_xform(spec = {}, opts = {})
-      create_scenario(spec, opts).transform
-    end
-    
-    it "should count number of records" do
-      @resources[:birth].should_receive(:count).and_return(4)
-      do_xform
-    end
-
-    it "should select all needed fields" do
-      @resources[:birth].should_receive(:select).with({
-        :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID", :limit => 10000, :offset => 0
-      }).and_return(@result)
-      do_xform
-    end
-    
-    it "should select only certain records if given conditions" do
-      @resources[:birth].should_receive(:select).with({
-        :columns => %w{ID MomSSN MomDOB}, :limit => 10000,
-        :conditions => "MomSSN NOT IN ('111111111', '222222222')",
-        :offset => 0, :order => 'ID'
-      }).and_return(@result)
-      do_xform('conditions' => "MomSSN NOT IN ('111111111', '222222222')")
-    end
-
-    it "should select fields needed to transform a matcher field" do
-      # stub transformer
-      convoy = stub("optimus prime is called convoy in japan", :data_type => 'varchar(255)')
-      convoy.stub!(:transform).and_return("optimus-prime")
-      Coupler::Transformer.stub!(:find).with('convoy').and_return(convoy)
-      @resources[:birth].should_receive(:select).with({
-        :columns => %w{ID MomDOB junk MomSSN},
-        :order => "ID", :limit => 10000, :offset => 0
-      }).and_return(@result)
-      do_xform(<<-EOF)
-        transformations:
-          - name: MomSSN
-            transformer: convoy
-            arguments:
-              ssn: MomSSN
-              stuff: junk
-      EOF
-    end
-
-    it "should not select fields not in the database" do
-      baka = stub("some crappy transformer", :data_type => 'varchar(255)', :transform => "baka")
-      Coupler::Transformer.stub!(:find).with('baka').and_return(baka)
-      @resources[:birth].should_receive(:select).with({
-        :columns => %w{ID MomSSN MomDOB},
-        :order => "ID", :limit => 10000, :offset => 0
-      }).and_return(@result)
-      do_xform(<<-EOF)
-        transformations:
-          - name: saru
-            transformer: baka
-            arguments:
-              ssn: MomSSN
-              dob: MomDOB
-      EOF
-    end
-
-    it "should select more records if it runs out" do
-      results = [
-        stub("first 10000", :close => nil),
-        stub("second 10000", :close => nil)
-      ]
-      results[0].stub!(:next).and_return(*(@records[0..1] + [nil]))
-      results[1].stub!(:next).and_return(*(@records[2..3] + [nil]))
-
-      @resources[:birth].stub!(:count).and_return(20000)
-      results.each_with_index do |result, i|
-        @resources[:birth].should_receive(:select).with({
-          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 10000, :offset => i * 10000
-        }).and_return(result)
-      end
-      do_xform
-    end
-
-    it "should transform all records" do
-      @ssn_filter.should_receive(:transform).with('ssn' => '123456789').exactly(3).times.and_return('123456789')
-      @date_changer.should_receive(:transform).with('date' => @date_1).twice.and_return(@date_1.to_s)
-      @date_changer.should_receive(:transform).with('date' => @date_2).twice.and_return(@date_2.to_s)
-      do_xform
-    end
-
-    it "should update scratch with the transformed records" do
-      @resources[:scratch].should_receive(:multi_update).with([1, 2, 3, 4], %w{ID MomSSN MomDOB}, @xrecords)
-      do_xform
-    end
-
-    describe "with --db-limit 2" do
-      before(:each) do
-        @options.db_limit = 2
-
-        @result1 = stub("first result set", :close => nil)
-        @result1.stub!(:next).and_return(@records[0], @records[1], nil)
-        @result2 = stub("second result set", :close => nil)
-        @result2.stub!(:next).and_return(@records[2], @records[3], nil)
-
-        @resources[:birth].stub!(:select).with({
-          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 2, :offset => 0
-        }).and_return(@result1)
-        @resources[:birth].stub!(:select).with({
-          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 2, :offset => 2
-        }).and_return(@result2)
-      end
-
-      it "should select 2 records at a time" do
-        @resources[:birth].should_receive(:select).with({
-          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 2, :offset => 0
-        }).and_return(@result1)
-        @resources[:birth].should_receive(:select).with({
-          :columns => ["ID", "MomSSN", "MomDOB"], :order => "ID",
-          :limit => 2, :offset => 2
-        }).and_return(@result2)
-        do_xform
-      end
-
-      it "should update scratch with at most 2 records at a time" do
-        @resources[:scratch].should_receive(:multi_update).with(
-          [1, 2], %w{ID MomSSN MomDOB}, @xrecords[0..1]
-        )
-        @resources[:scratch].should_receive(:multi_update).with(
-          [3, 4], %w{ID MomSSN MomDOB}, @xrecords[2..3]
-        )
-        do_xform
-      end
-    end
+    s.indices.should == [%w{MomSSN MomDOB}]
   end
 
   describe "#run" do
@@ -420,31 +171,12 @@ describe Coupler::Scenario do
       }).and_return(@result)
       @resources[:birth].stub!(:count).and_return(4)
 
-      # transformer setup
-      @ssn_filter.stub!(:transform).with('ssn' => '123456789').and_return('123456789')
-      @ssn_filter.stub!(:transform).with('ssn' => '999999999').and_return(nil)
-      @date_changer.stub!(:transform).with('date' => @date_1).and_return(@date_1.to_s)
-      @date_changer.stub!(:transform).with('date' => @date_2).and_return(@date_2.to_s)
-
       # matcher setup
       @scores = stub(Coupler::Scores)
       @matcher.stub!(:score).and_return(@scores)
       [[1, 3, 100], [1, 4, 50], [2, 4, 50], [3, 4, 50]].inject(@scores.stub!(:each)) do |s, ary|
         s.and_yield(*ary)
       end
-    end
-
-    describe "when using an already existing scratch database" do
-      before(:each) do
-        @scenario =  create_scenario({}, {:use_existing_scratch => true})
-      end
-
-      it "should not transform any records" do
-        @ssn_filter.should_not_receive(:transform).and_return(nil)
-        @date_change.should_not_receive(:transform).and_return(nil)
-        @scenario.run
-      end
-
     end
 
     describe "when outputting csv's" do
@@ -500,10 +232,6 @@ describe Coupler::Scenario do
           - field: MomDOB
             type: exact
       EOF
-    end
-
-    it "should not be boned if there are no transformers" do
-      do_run('transformations' => nil)
     end
 
     it "should match all records" do

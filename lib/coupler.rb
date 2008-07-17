@@ -10,7 +10,7 @@ require 'mysql'
 require 'fastercsv'
 require 'erubis'
 
-require 'progress'
+require 'buffer'
 require 'coupler/extensions'
 require 'coupler/resource'
 require 'coupler/transformer'
