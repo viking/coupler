@@ -13,8 +13,15 @@ Spec::Rake::SpecTask.new do |t|
 end
 
 desc "Run all stories"
-task :stories => [:build, "db:test:prepare"] do
-  load("stories/all.rb")
+task :stories, :story, :needs => [:build, "db:test:prepare"] do |t, args|
+  require 'stories/helper'
+  if args.story
+    files = Dir["stories/#{args.story}/**/*.rb"]
+    files.select { |f| f =~ /steps\.rb$/ }.each { |f| files.delete(f) }
+    files.each { |f| load(f) }
+  else
+    load("stories/all.rb")
+  end
 end
 
 desc "Build project"
@@ -39,14 +46,7 @@ namespace :db do
   namespace :test do
     desc 'Prepare the test databases and load the schema'
     task :prepare do
-      require 'sqlite3'
-      files = Dir['db/*_schema.rb']
-      files.each do |file|
-        name = File.basename(file, "_schema.rb")
-        db   = "db/#{name}.sqlite3"
-        File.delete(db) if File.exist?(db)
-        load(file)
-      end
+      load('db/test/schema.rb')
     end
   end
 end

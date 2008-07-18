@@ -1,0 +1,111 @@
+resources:
+<% %w{leetsauce weaksauce mayhem}.each do |name| %>
+  - name: <%= name %>
+    connection:
+      adapter: <%= adapter %>
+    <% case adapter %>
+    <% when 'sqlite3' %>
+      database: db/test/<%= name %>.sqlite3
+    <% when 'mysql' %>
+      database: coupler_test_records
+      username: coupler
+      password: coupler
+    <% end %>
+    table:
+      name: <%= name %>
+      primary key: id
+<% end %>
+<% %w{scratch scores}.each do |name| %>
+  - name: <%= name %>
+    connection:
+      adapter: <%= adapter %>
+    <% case adapter %>
+    <% when 'sqlite3' %>
+      database: db/test/<%= name %>.sqlite3
+    <% when 'mysql' %>
+      database: coupler_test_<%= name %>
+      username: coupler
+      password: coupler
+    <% end %>
+  <% end %>
+
+transformers:
+  functions:
+    - name: foo_filter
+      parameters:
+        - name: string
+          regexp: "(\d)\1{8}"
+      formula: "nil"
+      default: "string"
+      type: varchar(9)
+    - name: bar_bender
+      parameters:
+        - name: fry
+          coerce_to: integer
+        - name: leela
+          coerce_to: integer
+      formula: |
+        fry < 10 ? leela * 10 : fry / 5
+      default: "nil"
+      type: int
+  resources:
+    leetsauce:
+      - field: foo
+        function: foo_filter
+        arguments:
+          string: foo
+      - field: bar
+        function: bar_bender
+        arguments:
+          fry: zoidberg
+          leela: nixon
+    weaksauce:
+      - field: foo
+        function: foo_filter
+        arguments:
+          string: foo
+
+scenarios:
+  - name: leetsauce_foo
+    type: self-join
+    resource: leetsauce
+    matchers:
+      - fields: [foo, bar]
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
+
+  - name: leetsauce_bar
+    type: self-join
+    resource: leetsauce
+    matchers:
+      - fields: [foo, zoidberg]
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..100
+  
+  - name: weaksauce_foo
+    type: self-join
+    resource: weaksauce
+    matchers:
+      - field: foo
+        type: exact
+      - field: nixon
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
+
+  - name: utter_mayhem
+    type: self-join
+    resource: mayhem
+    matchers:
+      - field: pants
+        type: exact
+      - field: shirt
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..200

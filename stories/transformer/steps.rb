@@ -1,18 +1,20 @@
 steps_for(:transformer) do
+  FIXDIR = File.expand_path(File.dirname(__FILE__) + "/../fixtures")
+
   Given "the $name specification" do |name|
-    fn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
-    @options = Coupler::Options.new
-    @options.filenames << fn
+    logger = Logger.new("log/story.log")
+    logger.level = Logger::DEBUG
+    Coupler.logger = logger
 
     Coupler::Resource.reset
     Coupler::Transformer.reset
-    @adapter = name
-    @results = Hash.new { |h, k| h[k] = {} }
-    @matched = Hash.new { |h, k| h[k] = [] }
 
-    logger       = Logger.new("log/story.log")
-    logger.level = Logger::DEBUG
-    Coupler.logger = logger
+    @options  = Coupler::Options.new
+    @spec_raw = File.read(File.join(FIXDIR, "#{name}.yml.erb"))
+  end
+
+  Given "that I want to use the $adapter adapter" do |adapter|
+    @spec = YAML.load(Erubis::Eruby.new(@spec_raw).result(binding))
   end
 
   Given "the option of using an existing scratch database" do
@@ -20,59 +22,54 @@ steps_for(:transformer) do
   end
 
   When "I transform the resources" do
-    Coupler::Runner.transform(@options)
+    Coupler::Runner.transform(@spec, @options)
   end
 
-  Then "there should be a table named $table with primary key $key" do |table, key|
-    @scratch = Coupler::Resource.find('scratch')
+  Then "there should be a scratch table named $table with primary key $key" do |table, key|
+    @table    = table
+    @key      = key
+    @scratch  = Coupler::Resource.find('scratch')
     @scratch.set_table_and_key(table, key)
-    lambda { @scratch.select(:first, :columns => ["ID"]) }.should_not raise_error
+    lambda { @scratch.select(:first, :columns => [key]) }.should_not raise_error
   end
 
   Then "it should have column: $name $type" do |name, type|
     info = @scratch.columns([name])
-    info[name].should == type
+    info[name][0, type.length].should == type
   end
 
-  Then "every $nth $field should be NULL" do |nth, field|
-    n = nth.sub(/th$/, "").to_i
-    res = @scratch.select(:all, :columns => [field], :order => @scratch.primary_key)
-    i = 0
-    while (row = res.next)
-      row[0].should(be_nil)   if i % n == 0
-      i += 1
-    end
-  end
+  Then "$field should have been transformed properly" do |field|
+    resource = Coupler::Resource.find(@table)
+    columns  = field == 'foo' ? [@key, 'foo'] : [@key, 'zoidberg', 'nixon']
+    orig = resource.select(:all, :columns => columns, :order => @key)
+    curr = @scratch.select(:all, :columns => [@key, field], :order => @key)
+    while (o_row = orig.next)
+      c_row = curr.next
 
-  Then "every dob should have 10 days added" do
-    res = @scratch.select(:all, :columns => %w{dob}, :order => @scratch.primary_key)
-    i = 0
-    while (row = res.next)
-      if i % 75 == 0
-        row[0].should be_nil
-      else
-        expected = (Date.parse("1970-01-%02d" % (i % 25 + 1)) + 10).to_s
-        row[0].should == expected 
+      case field
+      when 'foo'
+        o_foo = o_row[1]; c_foo = c_row[1]
+        if o_foo =~ /^(\d)\1{8}$/
+          then c_foo.should be_nil
+          else c_foo.should == o_foo
+        end
+      when 'bar'
+        o_zoid, o_nix = o_row[1, 2]; c_bar = c_row[1]
+        if o_zoid < 10
+          then c_bar.should == o_nix * 10
+          else c_bar.should == o_zoid / 5 
+        end
       end
-      i += 1
     end
   end
 
-  Then "every foo should be multiplied by 10" do
-    res = @scratch.select(:all, :columns => %w{foo}, :order => @scratch.primary_key)
-    i = 0
-    while (row = res.next)
-      i += 1
-      row[0].should == i * 10
-    end
-  end
-
-  Then "every bar should be multiplied by 5" do
-    res = @scratch.select(:all, :columns => %w{bar}, :order => @scratch.primary_key)
-    i = 0
-    while (row = res.next)
-      i += 1
-      row[0].should == -i * 5
+  Then "$field should not have been transformed" do |field|
+    resource = Coupler::Resource.find(@table)
+    orig = resource.select(:all, :columns => [@key, field], :order => @key)
+    curr = @scratch.select(:all, :columns => [@key, field], :order => @key)
+    while (o_row = orig.next)
+      c_row = curr.next
+      c_row.should == o_row
     end
   end
 end

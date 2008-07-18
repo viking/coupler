@@ -95,7 +95,7 @@ module Coupler
         schema[:fields].each do |field|
           if (xfield = xfields[field]).nil?
             # this field isn't transformed
-            columns << field
+            columns |= [field]
           else
             columns |= xfield[:arguments].values
             schema[:info][field] = xfield[:transformer].data_type
