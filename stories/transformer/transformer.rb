@@ -4,7 +4,7 @@ require File.dirname(__FILE__) + "/steps"
 Story "transforming records", 
   %{As a researcher
     I want to transform records
-    So that I can link them later}, :steps_for => :transformer do
+    So that I can link them later}, :steps_for => [:coupler, :transformer] do
 
   %w{mysql sqlite3}.each do |adapter|
     Scenario "transforming in #{adapter}" do

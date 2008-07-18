@@ -1,32 +1,23 @@
-steps_for(:coupler) do
-  Given "the $name specification" do |name|
-    fn = File.join(File.dirname(__FILE__), "files", "#{name}.yml")
-    @options = Coupler::Options.new
-    @options.filenames << fn
-    Coupler::Resource.reset
-    Coupler::Transformer.reset
-    @adapter = name
-    @results = Hash.new { |h, k| h[k] = {} }
-    @matched = Hash.new { |h, k| h[k] = [] }
-  end
-
-  Given "the option of using an existing scratch database" do
-    @options.use_existing_scratch = true
-  end
+steps_for(:runner) do
 
   Given "that I want CSV output files" do
     @options.csv_output = true
   end
 
   When "I run the scenarios" do
-#    @options.dry_run = true
-    Coupler::Runner.run(@options)
+    Coupler::Resource.reset
+    Coupler::Transformer.reset
+    Coupler::Runner.run(@spec, @options)
+    @resource = Coupler::Resource.find('people')
+    @total    = @resource.count.to_i
+    @results  = Hash.new { |h, k| h[k] = {} }
+    @matched  = Hash.new { |h, k| h[k] = [] }
   end
 
-  Then "it should create the $filename file" do |filename|
+  Then "it should create $filename" do |filename|
     File.exist?(filename).should be_true
-    @results.clear
-    @matched.clear
+    @sname = filename.sub(/\.csv$/, "")
+
     FasterCSV.foreach(filename) do |row|
       next  if row[0] == "id1"
       id1 = row[0].to_i; id2 = row[1].to_i; score = row[2].to_i
@@ -35,25 +26,25 @@ steps_for(:coupler) do
     File.delete(filename)
   end
 
-  Then "it should store scores in the $table table" do |table|
-    @results.clear
-    @matched.clear
-
-    resource = Coupler::Resource.find('scores')
-    resource.set_table_and_key(table, "sid")
-    res = resource.select(:all, :columns => %w{sid id1 id2 score}, :order => "sid")
-    while (record = res.next)
-      @results[record[1].to_i][record[2].to_i] = record[3].to_i
-    end
-    res.close
-  end
+#  Then "it should store scores in the $table table" do |table|
+#    @results.clear
+#    @matched.clear
+#
+#    resource = Coupler::Resource.find('scores')
+#    resource.set_table_and_key(table, "sid")
+#    res = resource.select(:all, :columns => %w{sid id1 id2 score}, :order => "sid")
+#    while (record = res.next)
+#      @results[record[1].to_i][record[2].to_i] = record[3].to_i
+#    end
+#    res.close
+#  end
 
   Then "every $nth record should match nothing" do |nth|
     n = nth.sub(/th$/, "").to_i
 
-    (100/n+1).times do |i|
+    (@total/n+1).times do |i|
       id1 = i * n + 1
-      @matched[id1] = (1..100).to_a
+      @matched[id1] = (1..@total).to_a
       if !@results[id1].empty?
         raise "#{id1} wasn't supposed to match anything, but matched #{@results[id1].inspect}"
       end
@@ -69,8 +60,8 @@ steps_for(:coupler) do
     n = nth.sub(/th$/, "").to_i
     expected_score = expected_score.to_i
 
-    (1..100).each do |id1|
-      expected_ids   = ((id1+1)..100).select { |id2| (id2-id1) % n == 0 } - @matched[id1]
+    (1..@total).each do |id1|
+      expected_ids   = ((id1+1)..@total).select { |id2| (id2-id1) % n == 0 } - @matched[id1]
       @matched[id1] += expected_ids
 
       expected_ids.each do |id2|

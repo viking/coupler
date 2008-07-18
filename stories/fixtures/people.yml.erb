@@ -1,0 +1,79 @@
+resources:
+<% %w{people}.each do |name| %>
+  - name: <%= name %>
+    connection:
+      adapter: <%= adapter %>
+    <% case adapter %>
+    <% when 'sqlite3' %>
+      database: db/test/<%= name %>.sqlite3
+    <% when 'mysql' %>
+      database: coupler_test_records
+      username: coupler
+      password: coupler
+    <% end %>
+    table:
+      name: <%= name %>
+      primary key: id
+<% end %>
+<% %w{scratch scores}.each do |name| %>
+  - name: <%= name %>
+    connection:
+      adapter: <%= adapter %>
+    <% case adapter %>
+    <% when 'sqlite3' %>
+      database: db/test/<%= name %>.sqlite3
+    <% when 'mysql' %>
+      database: coupler_test_<%= name %>
+      username: coupler
+      password: coupler
+    <% end %>
+  <% end %>
+
+transformers:
+  functions:
+    - name: downcaser
+      parameters:
+        - name: string
+      formula: "string.downcase"
+      type: varchar(255)
+    - name: date_formatter
+      parameters:
+        - name: date
+      formula: "date ? '%04d-%02d-%02d' % [date.year, date.month, date.day] : nil"
+      type: char(10)
+  resources:
+    people:
+      - field: first_name
+        function: downcaser
+        arguments:
+          string: first_name
+      - field: last_name
+        function: downcaser
+        arguments:
+          string: last_name
+      - field: date_of_birth
+        function: date_formatter
+        arguments:
+          date: date_of_birth
+
+scenarios:
+  - name: first_rule
+    type: self-join
+    resource: people
+    matchers:
+      - fields: [first_name, last_name]
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
+  - name: second_rule
+    type: self-join
+    resource: people
+    matchers:
+      - field: last_name
+        type: exact
+      - field: date_of_birth
+        type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
