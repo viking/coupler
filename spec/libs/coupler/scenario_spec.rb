@@ -83,6 +83,11 @@ describe Coupler::Scenario do
     s.resource.should == @resources[:birth]
   end
 
+  it "should have resources" do
+    s = create_scenario
+    s.resources.should == [@resources[:birth]]
+  end
+
   it "should create a master matcher" do
     Coupler::Matchers::MasterMatcher.should_receive(:new).with({
       'field list' => %w{ID MomSSN MomDOB},
@@ -139,6 +144,25 @@ describe Coupler::Scenario do
           type: exact
     EOF
     s.indices.should == [%w{MomSSN MomDOB}]
+  end
+
+  describe "when matching two resources together" do
+    alias :orig_create_scenario :create_scenario
+    def create_scenario(spec = {}, opts = {})
+      spec = YAML.load(<<-EOF).merge( spec.is_a?(Hash) ? spec : YAML.load(spec) )
+        resources:
+          birth:
+            CertNum: BirthCertNum
+          death:
+            CertNum: DeathCertNum
+        matchers:
+          - field: BirthCertNum
+            type: exact
+      EOF
+      orig_create_scenario(spec, opts)
+    end
+
+    it "should find the birth and death resources"
   end
 
   describe "#run" do

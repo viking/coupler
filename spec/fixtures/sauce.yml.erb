@@ -41,11 +41,15 @@ transformers:
         arguments:
           fry: zoidberg
           leela: nixon
+      - field: farnsworth
+        rename from: wong
     weaksauce:
       - field: foo
         function: foo_filter
         arguments:
           string: foo
+      - field: farnsworth
+        rename from: brannigan
 
 scenarios:
   - name: leetsauce_foo
@@ -78,4 +82,11 @@ scenarios:
       - field: pants
         type: exact
       - field: shirt
+        type: exact
+
+  - name: leet_weak
+    type: dual-join 
+    resources: [leetsauce, weeksauce]
+    matchers:
+      - field: farnsworth
         type: exact

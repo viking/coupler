@@ -2,7 +2,7 @@ module Coupler
   class Scenario
     DEBUG = ENV['DEBUG']
 
-    attr_reader :name, :type, :resource, :field_list, :indices
+    attr_reader :name, :type, :resource, :resources, :field_list, :indices
     def initialize(spec, options)
       @options   = options
       @name      = spec['name']
@@ -10,10 +10,12 @@ module Coupler
       @guarantee = spec['guarantee']  # TODO: move this to command-line
       @range     = (r = spec['scoring']['range']).is_a?(Range) ? r : eval(r)
       @indices   = []
+      @resources = []
 
       case @type
       when 'self-join'
         @resource = Coupler::Resource.find(spec['resource'])
+        @resources << @resource
         raise "can't find resource '#{spec['resource']}'"   unless @resource
         @primary_key = @resource.primary_key
       else

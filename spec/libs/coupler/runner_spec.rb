@@ -20,8 +20,8 @@ describe Coupler::Runner do
       :weaksauce => stub("weaksauce resource", :name => 'weaksauce', :select => @weak_set, :primary_key => "id"),
       :mayhem    => stub("mayhem resource",    :name => 'mayhem',    :select => @may_set,  :primary_key => "id"),
     }
-    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo bar zoidberg}).and_return(@leet_buf)
-    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo nixon}).and_return(@weak_buf)
+    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
+    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
     @resources[:scratch].stub!(:insert_buffer).with(%w{id pants shirt}).and_return(@may_buf)
     @resources.each_pair do |name, obj|
       Coupler::Resource.stub!(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
@@ -30,20 +30,24 @@ describe Coupler::Runner do
     # this is a little excessive :(
     @scenarios = {
       :leetsauce_foo => stub("leetsauce_foo scenario", {
-        :name => 'leetsauce_foo', :resource => @resources[:leetsauce],
+        :name => 'leetsauce_foo', :resources => [@resources[:leetsauce]],
         :field_list => %w{id foo bar}, :indices => [%w{foo bar}], :run => @scores
       }),
       :leetsauce_bar => stub("leetsauce_bar scenario", {
-        :name => 'leetsauce_bar', :resource => @resources[:leetsauce],
+        :name => 'leetsauce_bar', :resources => [@resources[:leetsauce]],
         :field_list => %w{id foo zoidberg}, :indices => [%w{foo zoidberg}], :run => @scores
       }),
       :weaksauce_foo => stub("weaksauce_foo scenario", {
-        :name => 'weaksauce_foo', :resource => @resources[:weaksauce],
+        :name => 'weaksauce_foo', :resources => [@resources[:weaksauce]],
         :field_list => %w{id foo nixon}, :indices => %w{foo nixon}, :run => @scores 
       }),
       :utter_mayhem => stub("utter_mayhem scenario", {
-        :name => 'utter_mayhem', :resource => @resources[:mayhem],
+        :name => 'utter_mayhem', :resources => [@resources[:mayhem]],
         :field_list => %w{id pants shirt}, :indices => %w{pants shirt}, :run => @scores 
+      }),
+      :leet_weak => stub("leet_weak scenario", {
+        :name => 'leet_weak', :resources => @resources.values_at(:leetsauce, :weaksauce),
+        :field_list => %w{id farnsworth}, :indices => %w{farnsworth}, :run => @scores 
       })
     }
     @scenarios.each_pair do |name, obj|
@@ -166,16 +170,22 @@ describe Coupler::Runner do
 
   describe "#transform" do
     before(:each) do
-      @resources[:leetsauce].stub!(:columns).and_return({'id' => 'int', 'zoidberg' => 'int'})
-      @resources[:weaksauce].stub!(:columns).and_return({'id' => 'int', 'nixon' => 'int'})
+      @resources[:leetsauce].stub!(:columns).and_return({
+        'id' => 'int', 'zoidberg' => 'int', 'wong' => 'varchar(30)'
+      })
+      @resources[:weaksauce].stub!(:columns).and_return({
+        'id' => 'int', 'nixon' => 'int', 'brannigan' => 'varchar(30)'
+      })
       @resources[:mayhem].stub!(:columns).and_return({'id' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
       @leet_set.stub!(:next).and_return(
-        [1, "123456789", 10, 10], [2, "234567891", 20, 20], [3, "345678912", 30, 30],
-        [4, "444444444", 40, 40], [5, "567891234", 50, 50], nil
+        [1, "123456789", 10, 10, "one"], [2, "234567891", 20, 20, "two"],
+        [3, "345678912", 30, 30, "three"], [4, "444444444", 40, 40, "four"],
+        [5, "567891234", 50, 50, "five"], nil
       )
       @weak_set.stub!(:next).and_return(
-        [1, "111111111", 100], [2, "222222222", 200], [3, "333333333", 300],
-        [4, "456789123", 400], [5, "555555555", 500], nil
+        [1, "111111111", 100, "one"], [2, "222222222", 200, "two"],
+        [3, "333333333", 300, "three"], [4, "456789123", 400, "four"],
+        [5, "555555555", 500, "five"], nil
       )
       @may_set.stub!(:next).and_return(
         [1, "khakis", "polo"], [2, "jeans", "t-shirt"], [3, "skirt", "blouse"],
@@ -210,20 +220,23 @@ describe Coupler::Runner do
       @runner.transform
     end
 
-    it "should get column info about all non-transformer fields" do
-      @resources[:leetsauce].should_receive(:columns).and_return({'id' => 'int', 'zoidberg' => 'int'})
-      @resources[:weaksauce].should_receive(:columns).and_return({'id' => 'int', 'nixon' => 'int'})
-      @resources[:mayhem].should_receive(:columns).and_return({'id' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
+    it "should get column info about all non-transformer and renamed fields" do
+      @resources[:leetsauce].should_receive(:columns).with(%w{id zoidberg wong}).and_return({'id' => 'int', 'zoidberg' => 'int', 'wong' => 'varchar(30)'})
+      @resources[:weaksauce].should_receive(:columns).with(%w{id nixon brannigan}).and_return({'id' => 'int', 'nixon' => 'int'})
+      @resources[:mayhem].should_receive(:columns).with(%w{id pants shirt}).and_return({'id' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
       @runner.transform
     end
 
     it "should create one scratch table for each resource used" do
       @resources[:scratch].should_receive(:create_table).with( 
-        'leetsauce', ["id int", "foo varchar(9)", "bar int", "zoidberg int"], 
-        [["foo", "bar"], ["foo", "zoidberg"]]
+        'leetsauce', 
+        ["id int", "foo varchar(9)", "bar int", "zoidberg int", "farnsworth varchar(30)"], 
+        [["foo", "bar"], ["foo", "zoidberg"], "farnsworth"]
       )
       @resources[:scratch].should_receive(:create_table).with( 
-        'weaksauce', ["id int", "foo varchar(9)", "nixon int"], ["foo", "nixon"]
+        'weaksauce',
+        ["id int", "foo varchar(9)", "nixon int", "farnsworth varchar(30)"],
+        ["foo", "nixon", "farnsworth"]
       )
       @resources[:scratch].should_receive(:create_table).with( 
         'mayhem', ["id int", "pants varchar(7)", "shirt varchar(8)"], ["pants", "shirt"]
@@ -243,7 +256,7 @@ describe Coupler::Runner do
     it "should select all needed fields from leetsauce" do
       @resources[:leetsauce].should_receive(:select) do |hsh|
         hsh[:auto_refill].should be_true
-        (%w{id foo zoidberg nixon} - hsh[:columns]).should be_empty
+        hsh[:columns].sort.should == %w{foo id nixon wong zoidberg}
         hsh[:order].should == "id"
         @leet_set
       end
@@ -253,7 +266,7 @@ describe Coupler::Runner do
     it "should select all needed fields from weaksauce" do
       @resources[:weaksauce].should_receive(:select) do |hsh|
         hsh[:auto_refill].should be_true
-        (%w{id foo nixon} - hsh[:columns]).should == []
+        hsh[:columns].sort.should == %w{brannigan foo id nixon}
         hsh[:order].should == "id"
         @weak_set
       end
@@ -263,7 +276,7 @@ describe Coupler::Runner do
     it "should select all needed fields from mayhem" do
       @resources[:mayhem].should_receive(:select) do |hsh|
         hsh[:auto_refill].should be_true
-        (%w{id pants shirt} - hsh[:columns]).should == []
+        hsh[:columns].sort.should == %w{id pants shirt}
         hsh[:order].should == "id"
         @may_set
       end
@@ -300,27 +313,27 @@ describe Coupler::Runner do
     end
 
     it "should create an insert buffer from the scratch resource for each resource" do
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo bar zoidberg}).and_return(@leet_buf)
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo nixon}).and_return(@weak_buf)
+      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
+      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
       @resources[:scratch].should_receive(:insert_buffer).with(%w{id pants shirt}).and_return(@may_buf)
       @runner.transform
     end
 
     it "should add each transformed leetsauce record to the insert buffer" do
-      @leet_buf.should_receive(:<<).with([1, "convoy", 1337, 10])
-      @leet_buf.should_receive(:<<).with([2, "convoy", 1337, 20])
-      @leet_buf.should_receive(:<<).with([3, "convoy", 1337, 30])
-      @leet_buf.should_receive(:<<).with([4, "convoy", 1337, 40])
-      @leet_buf.should_receive(:<<).with([5, "convoy", 1337, 50])
+      @leet_buf.should_receive(:<<).with([1, "convoy", 1337, 10, "one"])
+      @leet_buf.should_receive(:<<).with([2, "convoy", 1337, 20, "two"])
+      @leet_buf.should_receive(:<<).with([3, "convoy", 1337, 30, "three"])
+      @leet_buf.should_receive(:<<).with([4, "convoy", 1337, 40, "four"])
+      @leet_buf.should_receive(:<<).with([5, "convoy", 1337, 50, "five"])
       @runner.transform
     end
 
     it "should add each transformed weaksauce record to the insert buffer" do
-      @weak_buf.should_receive(:<<).with([1, "convoy", 100])
-      @weak_buf.should_receive(:<<).with([2, "convoy", 200])
-      @weak_buf.should_receive(:<<).with([3, "convoy", 300])
-      @weak_buf.should_receive(:<<).with([4, "convoy", 400])
-      @weak_buf.should_receive(:<<).with([5, "convoy", 500])
+      @weak_buf.should_receive(:<<).with([1, "convoy", 100, "one"])
+      @weak_buf.should_receive(:<<).with([2, "convoy", 200, "two"])
+      @weak_buf.should_receive(:<<).with([3, "convoy", 300, "three"])
+      @weak_buf.should_receive(:<<).with([4, "convoy", 400, "four"])
+      @weak_buf.should_receive(:<<).with([5, "convoy", 500, "five"])
       @runner.transform
     end
 
