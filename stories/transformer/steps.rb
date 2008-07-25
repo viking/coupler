@@ -47,4 +47,14 @@ steps_for(:transformer) do
       c_row.should == o_row
     end
   end
+
+  Then "$field should have been renamed to $rfield" do |field, rfield|
+    resource = Coupler::Resource.find(@table)
+    orig = resource.select(:all, :columns => [@key, field],  :order => @key)
+    curr = @scratch.select(:all, :columns => [@key, rfield], :order => @key)
+    while (o_row = orig.next)
+      c_row = curr.next
+      c_row.should == o_row
+    end
+  end
 end

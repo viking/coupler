@@ -5,6 +5,8 @@ require 'enumerator'
 
 pool = {
   'foo' => %w{123456789 234567891 345678912 444444444 567891234 678912345 789123456 891234567 999999999},
+  'wong' => %w{ichi ni san yon go roku nana hachi kyuu juu},
+  'brannigan' => %w{uno dos tres cuatro cinco seis siete ocho nueve dies},
   'pants' => %w{khakis jeans shorts trunks speedo skirt},
   'shirt' => %w{polo tshirt blouse sweater bikini tanktop},
   'first_name' => %w{Ender Valentine Peter Alai Shen Petra Bean Dink},
@@ -21,9 +23,9 @@ mydbh = Mysql.new('localhost', 'coupler', 'coupler', 'coupler_test_records')
 
   columns, types = case name
     when 'leetsauce'
-      [%w{id foo zoidberg nixon}, %w{int varchar(9) int int}]
+      [%w{id foo zoidberg nixon wong}, %w{int varchar(9) int int varchar(10)}]
     when 'weaksauce'
-      [%w{id foo nixon}, %w{int varchar(9) int}]
+      [%w{id foo nixon brannigan}, %w{int varchar(9) int varchar(10)}]
     when 'mayhem'
       [%w{id pants shirt}, %w{int varchar(10) varchar(10)}]
     when 'people'

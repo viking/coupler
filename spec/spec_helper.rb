@@ -6,6 +6,10 @@ require 'yaml'
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'coupler'
 
+logger = Logger.new(File.dirname(__FILE__) + "/../log/test.log")
+logger.level = Logger::DEBUG
+Coupler.logger = logger
+
 Spec::Runner.configure do |config|
   # == Mock Framework
   #

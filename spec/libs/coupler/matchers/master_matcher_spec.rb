@@ -2,15 +2,28 @@ require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
 describe Coupler::Matchers::MasterMatcher do
   before(:each) do
+    @options   = Coupler::Options.new
     @exact     = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
     @default   = stub("default matcher", :field => 'foo', :score => nil)
-    @cache     = stub(Coupler::Cache)
-    @resource  = stub(Coupler::Resource, :keys => [1,2,3,4])
+    @scratch   = stub(Coupler::Resource, :keys => [1,2,3,4])
     @scores_db = stub(Coupler::Resource, :drop_table => nil, :create_table => nil)
     @scores    = stub(Coupler::Scores)
     @recorder  = stub(Coupler::Scores::Recorder)
-    @options   = Coupler::Options.new
     @scores.stub!(:record).and_yield(@recorder)
+
+    @resources = [
+      stub("birth resource", :name => 'birth'),
+      stub("death resource", :name => 'death'),
+    ]
+    @parent = stub("parent scenario", :name => "foo", :resources => @resources)
+    @caches = {
+      :birth => stub("birth cache"),
+      :death => stub("death cache")
+    }
+    @caches.each_pair do |name, obj|
+      Coupler::Cache.stub!(:new).with(name.to_s, @options).and_return(obj)
+    end
+
     Coupler::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
     Coupler::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
     Coupler::Scores.stub!(:new).and_return(@scores)
@@ -21,10 +34,9 @@ describe Coupler::Matchers::MasterMatcher do
       'field list' => %w{id foo bar},
       'combining method' => "mean",
       'range'    => 40..100,
-      'cache'    => @cache,
-      'resource' => @resource,
+      'scratch'  => @scratch,
       'scores'   => @scores_db,
-      'name'     => 'foo'
+      'parent'   => @parent
     }.merge(spec), @options)
   end
 
@@ -55,6 +67,13 @@ describe Coupler::Matchers::MasterMatcher do
     m.range.should == (40..100)
   end
 
+  it "should create caches for each resource" do
+    @caches.each_pair do |name, obj|
+      Coupler::Cache.should_receive(:new).with(name.to_s, @options).and_return(obj)
+    end
+    create_master
+  end
+
   describe "#add_matcher" do
     before(:each) do
       @master = create_master
@@ -63,7 +82,7 @@ describe Coupler::Matchers::MasterMatcher do
     it "should create an exact matcher" do
       Coupler::Matchers::ExactMatcher.should_receive(:new).with({
         'field' => 'bar', 'type' => 'exact',
-        'resource' => @resource
+        'resources' => @resources, 'scratch' => @scratch
       }, @options).and_return(@exact)
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
     end
@@ -96,7 +115,7 @@ describe Coupler::Matchers::MasterMatcher do
     end
 
     it "should get keys from the resource" do
-      @resource.should_receive(:keys).and_return([1,2,3,4])
+      @scratch.should_receive(:keys).and_return([1,2,3,4])
       @master.score
     end
 

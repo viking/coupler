@@ -18,11 +18,11 @@ describe Coupler::Runner do
       :scratch   => stub("scratch resource",   :name => 'scratch', :create_table => nil, :drop_table => nil),
       :leetsauce => stub("leetsauce resource", :name => 'leetsauce', :select => @leet_set, :primary_key => "id"),
       :weaksauce => stub("weaksauce resource", :name => 'weaksauce', :select => @weak_set, :primary_key => "id"),
-      :mayhem    => stub("mayhem resource",    :name => 'mayhem',    :select => @may_set,  :primary_key => "id"),
+      :mayhem    => stub("mayhem resource",    :name => 'mayhem',    :select => @may_set,  :primary_key => "demolition"),
     }
     @resources[:scratch].stub!(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
     @resources[:scratch].stub!(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
-    @resources[:scratch].stub!(:insert_buffer).with(%w{id pants shirt}).and_return(@may_buf)
+    @resources[:scratch].stub!(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
     @resources.each_pair do |name, obj|
       Coupler::Resource.stub!(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
     end
@@ -31,23 +31,23 @@ describe Coupler::Runner do
     @scenarios = {
       :leetsauce_foo => stub("leetsauce_foo scenario", {
         :name => 'leetsauce_foo', :resources => [@resources[:leetsauce]],
-        :field_list => %w{id foo bar}, :indices => [%w{foo bar}], :run => @scores
+        :field_list => %w{foo bar}, :indices => [%w{foo bar}], :run => @scores
       }),
       :leetsauce_bar => stub("leetsauce_bar scenario", {
         :name => 'leetsauce_bar', :resources => [@resources[:leetsauce]],
-        :field_list => %w{id foo zoidberg}, :indices => [%w{foo zoidberg}], :run => @scores
+        :field_list => %w{foo zoidberg}, :indices => [%w{foo zoidberg}], :run => @scores
       }),
       :weaksauce_foo => stub("weaksauce_foo scenario", {
         :name => 'weaksauce_foo', :resources => [@resources[:weaksauce]],
-        :field_list => %w{id foo nixon}, :indices => %w{foo nixon}, :run => @scores 
+        :field_list => %w{foo nixon}, :indices => %w{foo nixon}, :run => @scores 
       }),
       :utter_mayhem => stub("utter_mayhem scenario", {
         :name => 'utter_mayhem', :resources => [@resources[:mayhem]],
-        :field_list => %w{id pants shirt}, :indices => %w{pants shirt}, :run => @scores 
+        :field_list => %w{pants shirt}, :indices => %w{pants shirt}, :run => @scores 
       }),
       :leet_weak => stub("leet_weak scenario", {
         :name => 'leet_weak', :resources => @resources.values_at(:leetsauce, :weaksauce),
-        :field_list => %w{id farnsworth}, :indices => %w{farnsworth}, :run => @scores 
+        :field_list => %w{farnsworth}, :indices => %w{farnsworth}, :run => @scores 
       })
     }
     @scenarios.each_pair do |name, obj|
@@ -66,6 +66,8 @@ describe Coupler::Runner do
   def create_runner
     Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
   end
+
+  it "should be a singleton"
 
   it "should create a new resource for each item in 'resources'" do
     @resources.each_pair do |name, obj|
@@ -176,7 +178,7 @@ describe Coupler::Runner do
       @resources[:weaksauce].stub!(:columns).and_return({
         'id' => 'int', 'nixon' => 'int', 'brannigan' => 'varchar(30)'
       })
-      @resources[:mayhem].stub!(:columns).and_return({'id' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
+      @resources[:mayhem].stub!(:columns).and_return({'demolition' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
       @leet_set.stub!(:next).and_return(
         [1, "123456789", 10, 10, "one"], [2, "234567891", 20, 20, "two"],
         [3, "345678912", 30, 30, "three"], [4, "444444444", 40, 40, "four"],
@@ -223,7 +225,7 @@ describe Coupler::Runner do
     it "should get column info about all non-transformer and renamed fields" do
       @resources[:leetsauce].should_receive(:columns).with(%w{id zoidberg wong}).and_return({'id' => 'int', 'zoidberg' => 'int', 'wong' => 'varchar(30)'})
       @resources[:weaksauce].should_receive(:columns).with(%w{id nixon brannigan}).and_return({'id' => 'int', 'nixon' => 'int'})
-      @resources[:mayhem].should_receive(:columns).with(%w{id pants shirt}).and_return({'id' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
+      @resources[:mayhem].should_receive(:columns).with(%w{demolition pants shirt}).and_return({'demolition' => 'int', 'pants' => 'varchar(7)', 'shirt' => 'varchar(8)'})
       @runner.transform
     end
 
@@ -239,7 +241,7 @@ describe Coupler::Runner do
         ["foo", "nixon", "farnsworth"]
       )
       @resources[:scratch].should_receive(:create_table).with( 
-        'mayhem', ["id int", "pants varchar(7)", "shirt varchar(8)"], ["pants", "shirt"]
+        'mayhem', ["demolition int", "pants varchar(7)", "shirt varchar(8)"], ["pants", "shirt"]
       )
       @runner.transform
     end
@@ -276,8 +278,8 @@ describe Coupler::Runner do
     it "should select all needed fields from mayhem" do
       @resources[:mayhem].should_receive(:select) do |hsh|
         hsh[:auto_refill].should be_true
-        hsh[:columns].sort.should == %w{id pants shirt}
-        hsh[:order].should == "id"
+        hsh[:columns].sort.should == %w{demolition pants shirt}
+        hsh[:order].should == "demolition"
         @may_set
       end
       @runner.transform
@@ -315,7 +317,7 @@ describe Coupler::Runner do
     it "should create an insert buffer from the scratch resource for each resource" do
       @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
       @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{id pants shirt}).and_return(@may_buf)
+      @resources[:scratch].should_receive(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
       @runner.transform
     end
 

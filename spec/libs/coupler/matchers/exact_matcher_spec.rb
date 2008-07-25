@@ -14,6 +14,8 @@ describe Coupler::Matchers::ExactMatcher do
     }.merge(spec), @options)
   end
 
+  it "should handle multiple resources"
+
   it "should have a default true_score" do
     m = create_matcher
     m.true_score.should == 100

@@ -7,11 +7,11 @@ resources:
     <% unless %w{scratch scores}.include?(name) %>
     table:
       name: records
-      primary key: id
+      primary key: <%= name == 'mayhem' ? 'demolition' : 'id' %>
     <% end %>
   <% end %>
 
-transformers:
+transformations:
   functions:
     - name: foo_filter
       parameters:

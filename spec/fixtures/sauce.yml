@@ -19,7 +19,7 @@ resources:
       database: db/mayhem.sql
     table:
       name: records
-      primary key: id
+      primary key: demolition
   - name: scratch
     connection:
       adapter: sqlite3
@@ -29,7 +29,7 @@ resources:
       adapter: sqlite3
       database: db/scores.sql
 
-transformers:
+transformations:
   functions:
     - name: foo_filter
       parameters:

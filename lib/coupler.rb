@@ -1,7 +1,6 @@
 require 'logger'
 require 'yaml'
 require 'enumerator'
-require 'erb'
 require 'optparse'
 
 require 'rubygems'
@@ -11,15 +10,6 @@ require 'fastercsv'
 require 'erubis'
 
 require 'buffer'
-require 'coupler/extensions'
-require 'coupler/resource'
-require 'coupler/transformer'
-require 'coupler/scenario'
-require 'coupler/runner'
-require 'coupler/cache'
-require 'coupler/matchers'
-require 'coupler/scores'
-require 'coupler/options'
 
 module Coupler
   @@logger = nil
@@ -31,3 +21,14 @@ module Coupler
     @@logger = logger
   end
 end
+
+require 'coupler/extensions'
+require 'coupler/matchers'
+require 'coupler/options'
+require 'coupler/resource'
+require 'coupler/runner'
+require 'coupler/scenario'
+require 'coupler/scores'
+require 'coupler/specification'
+require 'coupler/transformer'
+require 'coupler/cache'

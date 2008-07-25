@@ -145,26 +145,15 @@ cache_alloc(klass)
 }
 
 static VALUE
-cache_init(argc, argv, self)
-  int    argc;
-  VALUE *argv;
-  VALUE  self;
+cache_init(self, resource_name, options)
+  VALUE self;
+  VALUE resource_name;
+  VALUE options;
 {
   CouplerCache *c;
-  VALUE resource_name, guaranteed, resource, method, options;
+  VALUE resource, method;
 
   GetCache(self, c);
-  if (rb_scan_args(argc, argv, "21", &resource_name, &options, &guaranteed)) {
-    if (!NIL_P(guaranteed)) {
-      if (!FIXNUM_P(guaranteed))
-        rb_raise(rb_eTypeError, "wrong argument type %s (expected Fixnum)", rb_obj_classname(guaranteed));
-
-      c->guaranteed = FIX2INT(guaranteed);
-    }
-    else {
-      c->guaranteed = 0;
-    }
-  }
 
   /* find resource */
   resource = rb_funcall(rb_mCoupler_cResource, id_find, 1, resource_name);
@@ -175,6 +164,7 @@ cache_init(argc, argv, self)
   c->keys        = rb_ary_new();
   c->logger      = rb_funcall(rb_mCoupler, rb_intern("logger"), 0);
   c->db_limit    = FIX2INT(rb_funcall(options, rb_intern("db_limit"), 0));
+  c->guaranteed  = FIX2INT(rb_funcall(options, rb_intern("guaranteed"), 0));
 
   /* make the reclaim proc.  this is kinda ghetto */
   method = rb_funcall(self, id_method, 1, ID2SYM(id_reclaim));
@@ -304,7 +294,7 @@ cache_fetch(self, args)
   c->fetches++;
 
   if ( RTEST(c->logger) ) {
-    tmp = rb_str_plus(rb_str_new2("Fetching from cache:"), rb_inspect(args));
+    tmp = rb_str_plus(rb_str_new2("Fetching from cache: "), rb_inspect(args));
     rb_funcall(c->logger, id_debug, 1, tmp);
   }
 
@@ -532,7 +522,7 @@ Init_cache()
   
   rb_mCoupler_cCache = rb_define_class_under(rb_mCoupler, "Cache", rb_cObject);
   rb_define_alloc_func(rb_mCoupler_cCache, cache_alloc);
-  rb_define_method(rb_mCoupler_cCache, "initialize", cache_init, -1);
+  rb_define_method(rb_mCoupler_cCache, "initialize", cache_init, 2);
   rb_define_method(rb_mCoupler_cCache, "add", cache_add, 2);
   rb_define_method(rb_mCoupler_cCache, "fetch", cache_fetch, -2);
   rb_define_method(rb_mCoupler_cCache, "fetches", cache_fetches, 0);

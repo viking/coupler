@@ -45,11 +45,11 @@ module Coupler
       raise "you must provide a scratch resource!"  unless @scratch 
       raise "you must provide a scores resource!"   unless @scores
 
-      if spec['transformers']
-        spec['transformers']['functions'].each do |config|
+      if spec['transformations']
+        spec['transformations']['functions'].each do |config|
           @transformers[config['name']] = Coupler::Transformer.new(config)
         end
-        spec['transformers']['resources'].each do |resource, config|
+        spec['transformations']['resources'].each do |resource, config|
           config.each do |info|
             field, tname, rename = info.values_at('field', 'function', 'rename from')
             if rename
@@ -83,9 +83,12 @@ module Coupler
         scenario.resources.each do |resource|
           rname  = resource.name
           fields = scenario.field_list
-          @schemas[rname][:resource] ||= resource
-          @schemas[rname][:fields]    |= fields
-          @schemas[rname][:indices]   |= scenario.indices 
+          unless @schemas.has_key?(rname)
+            @schemas[rname][:resource] = resource
+            @schemas[rname][:fields]   = [resource.primary_key]
+          end
+          @schemas[rname][:fields]  |= fields
+          @schemas[rname][:indices] |= scenario.indices 
         end
       end
 

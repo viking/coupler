@@ -41,6 +41,11 @@ describe Coupler::Options do
       do_parse %w{foo.yml -f foo.log}
       @options.log_file.should == "foo.log"
     end
+
+    it "should set guaranteed" do
+      do_parse %w{foo.yml -g 10000}
+      @options.guaranteed.should == 10000
+    end
   end
 
   describe "default settings" do
@@ -70,6 +75,10 @@ describe Coupler::Options do
 
     it "should have a log_file of log/runner.log" do
       @opts.log_file.should == File.expand_path("log/runner.log")
+    end
+
+    it "should have a guaranteed of 0" do
+      @opts.guaranteed.should == 0
     end
   end
 end

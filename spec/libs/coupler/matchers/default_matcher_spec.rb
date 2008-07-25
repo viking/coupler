@@ -30,6 +30,8 @@ describe Coupler::Matchers::DefaultMatcher do
     @recorder = stub(Coupler::Scores::Recorder, :add => nil)
   end
 
+  it "should handle multiple caches"
+
   it "should have a field" do
     @matcher.field.should == 'MomSSN'
   end

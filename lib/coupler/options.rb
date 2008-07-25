@@ -14,6 +14,9 @@ module Coupler
         opts.on("-l", "--db-limit NUMBER", "Limit to use for database queries (default 10000)") do |number|
           options.db_limit = number.to_i
         end
+        opts.on("-g", "--guaranteed NUMBER", "Number to always keep in caches") do |number|
+          options.guaranteed = number.to_i
+        end
         opts.on("-v", "--verbose", "Be verbose in logs") do
           options.log_level = Logger::DEBUG
         end
@@ -36,7 +39,8 @@ module Coupler
                   :db_limit,
                   :dry_run,
                   :log_level,
-                  :log_file
+                  :log_file,
+                  :guaranteed
 
     def initialize
       @use_existing_scratch = false
@@ -46,6 +50,7 @@ module Coupler
       @dry_run    = false
       @log_level  = Logger::INFO
       @log_file   = File.expand_path(File.join(File.dirname(__FILE__), "..", "..", "log", "runner.log"))
+      @guaranteed = 0
     end
   end
 end

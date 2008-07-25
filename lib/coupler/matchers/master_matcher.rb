@@ -1,26 +1,36 @@
 module Coupler
   module Matchers
     class MasterMatcher
-      attr_reader :field_list, :matchers, :combining_method, :range
+      attr_reader :field_list, 
+                  :matchers,
+                  :combining_method,
+                  :range,
+                  :resources,
+                  :name
 
       def initialize(spec, options)
         @options = options
         @combining_method = spec['combining method']
         @field_list = spec['field list']   # NOTE: primary key should be first
         @range      = spec['range']
-        @resource   = spec['resource']
-        @cache      = spec['cache']
-        @name       = spec['name']
+        @scratch    = spec['scratch']
         @scores_db  = spec['scores']
+        @parent     = spec['parent']
+        @name       = @parent.name
+        @resources  = @parent.resources
         @matchers   = []
         @indices    = []
         @defaults   = []
+        @caches     = @resources.collect do |resource|
+          Cache.new(resource.name, @options)
+        end
       end
 
       def add_matcher(matcher)
         case matcher['type']
         when 'exact'
-          matcher['resource'] = @resource
+          matcher['resources'] = @resources
+          matcher['scratch']   = @scratch
           @matchers << ExactMatcher.new(matcher, @options)
           @defaults << @matchers.last.false_score
         else
@@ -35,7 +45,7 @@ module Coupler
         scores = Coupler::Scores.new({
           'combining method' => @combining_method,
           'range'    => @range,
-          'keys'     => @resource.keys,
+          'keys'     => @scratch.keys,
           'num'      => @matchers.length,
           'defaults' => @defaults,
           'resource' => @scores_db,

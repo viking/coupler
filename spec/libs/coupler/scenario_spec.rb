@@ -12,6 +12,10 @@ describe Coupler::Scenario do
       :birth   => stub('birth resource', {
         :table => "birth_all", :primary_key => "ID", :name => 'birth',
         :columns => { "ID" => "int", "MomSSN" => "varchar(9)", "MomDOB" => "date" }
+      }),
+      :death   => stub('birth resource', {
+        :table => "death_all", :primary_key => "ID", :name => 'death',
+        :columns => { "ID" => "int" }
       })
     }
     @resources.each_pair do |name, obj|
@@ -73,14 +77,11 @@ describe Coupler::Scenario do
     lambda { create_scenario }.should raise_error("can't find resource 'birth'")
   end
 
+  it "should create a 'scratch' resource for each of the scenario's resources"
+
   it "should have a type of self-join" do
     s = create_scenario
     s.type.should == 'self-join'
-  end
-
-  it "should have a resource" do
-    s = create_scenario
-    s.resource.should == @resources[:birth]
   end
 
   it "should have resources" do
@@ -90,13 +91,12 @@ describe Coupler::Scenario do
 
   it "should create a master matcher" do
     Coupler::Matchers::MasterMatcher.should_receive(:new).with({
-      'field list' => %w{ID MomSSN MomDOB},
+      'field list' => %w{MomSSN MomDOB},
       'combining method' => 'mean',
       'range' => 50..100,
-      'cache' => @cache,
-      'resource' => @resources[:scratch],
+      'scratch' => @resources[:scratch],
       'scores' => @resources[:scores],
-      'name' => 'family'
+      'parent' => an_instance_of(Coupler::Scenario)
     }, @options).and_return(@matcher)
     create_scenario
   end
@@ -111,19 +111,19 @@ describe Coupler::Scenario do
     create_scenario
   end
 
-  it "should create a cache with the scratch database" do
-    Coupler::Cache.should_receive(:new).with('scratch', @options).and_return(@cache)
-    create_scenario
-  end
-
-  it "should use a guaranteed cache when specified in the YAML" do
-    Coupler::Cache.should_receive(:new).with('scratch', @options, 1000).and_return(@cache)
-    create_scenario('guarantee' => 1000)
-  end
+#  it "should create a cache with the scratch database" do
+#    Coupler::Cache.should_receive(:new).with('scratch', @options).and_return(@cache)
+#    create_scenario
+#  end
+#
+#  it "should use a guaranteed cache when specified in the YAML" do
+#    Coupler::Cache.should_receive(:new).with('scratch', @options, 1000).and_return(@cache)
+#    create_scenario('guarantee' => 1000)
+#  end
 
   it "should have a field list" do
     s = create_scenario
-    s.field_list.should == %w{ID MomSSN MomDOB}
+    s.field_list.should == %w{MomSSN MomDOB}
   end
 
   it "should have indices when using exact matchers" do
@@ -150,11 +150,8 @@ describe Coupler::Scenario do
     alias :orig_create_scenario :create_scenario
     def create_scenario(spec = {}, opts = {})
       spec = YAML.load(<<-EOF).merge( spec.is_a?(Hash) ? spec : YAML.load(spec) )
-        resources:
-          birth:
-            CertNum: BirthCertNum
-          death:
-            CertNum: DeathCertNum
+        type: dual-join
+        resources: [birth, death]
         matchers:
           - field: BirthCertNum
             type: exact
@@ -162,7 +159,20 @@ describe Coupler::Scenario do
       orig_create_scenario(spec, opts)
     end
 
-    it "should find the birth and death resources"
+    it "should not raise an error for being a dual-join type" do
+      lambda { create_scenario }.should_not raise_error("unsupported scenario type")
+    end
+
+    it "should find birth and death resources" do
+      Coupler::Resource.should_receive(:find).with('birth').and_return(@resources[:birth])
+      Coupler::Resource.should_receive(:find).with('death').and_return(@resources[:death])
+      create_scenario
+    end
+
+    it "should have resources" do
+      s = create_scenario
+      s.resources.should == @resources.values_at(:birth, :death)
+    end
   end
 
   describe "#run" do
@@ -232,31 +242,31 @@ describe Coupler::Scenario do
       do_run
     end
 
-    it "should set the table and key of the scratch resource" do
-      @resources[:scratch].should_receive(:set_table_and_key).with('birth', 'ID')
-      do_run
-    end
-
-    it "should clear the cache" do
-      @cache.should_receive(:clear)
-      do_run
-    end
-
-    it "should auto-fill the cache" do
-      @cache.should_receive(:auto_fill!)
-      do_run
-    end
-
-    it "should not auto-fill the cache if all matchers are exact" do
-      @cache.should_not_receive(:auto_fill!)
-      do_run(<<-EOF, :use_existing_scratch => true)
-        matchers:
-          - field: MomSSN
-            type: exact
-          - field: MomDOB
-            type: exact
-      EOF
-    end
+#    it "should set the table and key of the scratch resource" do
+#      @resources[:scratch].should_receive(:set_table_and_key).with('birth', 'ID')
+#      do_run
+#    end
+#
+#    it "should clear the cache" do
+#      @cache.should_receive(:clear)
+#      do_run
+#    end
+#
+#    it "should auto-fill the cache" do
+#      @cache.should_receive(:auto_fill!)
+#      do_run
+#    end
+#
+#    it "should not auto-fill the cache if all matchers are exact" do
+#      @cache.should_not_receive(:auto_fill!)
+#      do_run(<<-EOF, :use_existing_scratch => true)
+#        matchers:
+#          - field: MomSSN
+#            type: exact
+#          - field: MomDOB
+#            type: exact
+#      EOF
+#    end
 
     it "should match all records" do
       @matcher.should_receive(:score).with(no_args()).and_return(@scores)

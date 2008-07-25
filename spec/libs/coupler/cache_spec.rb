@@ -15,14 +15,10 @@ describe Coupler::Cache do
     Coupler::Cache.new('scratch', @options)
   end
 
-  it "should accept a number of guaranteed records" do
-    Coupler::Cache.new('scratch', @options, 1000)
-  end
-
   describe "when --db-limit is 50000" do
     before(:each) do
       @options.db_limit = 50000
-      @cache = Coupler::Cache.new('scratch', @options, 10)
+      @cache = Coupler::Cache.new('scratch', @options)
     end
 
     it "#auto_fill! should select all records from the database, 50000 at a time" do
@@ -50,7 +46,8 @@ describe Coupler::Cache do
 
   describe "when guaranteeing 10 records" do
     before(:each) do
-      @cache = Coupler::Cache.new('scratch', @options, 10)
+      @options.guaranteed = 10
+      @cache = Coupler::Cache.new('scratch', @options)
       (1..11).each do |i|
         @cache.add(i, [i, "data #{i}"])
       end

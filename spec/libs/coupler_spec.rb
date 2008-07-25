@@ -6,4 +6,6 @@ describe Coupler do
     Coupler.logger = logger
     Coupler.logger.should == logger
   end
+
+  it "should have only one runner"
 end
