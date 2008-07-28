@@ -12,13 +12,27 @@ require 'erubis'
 require 'buffer'
 
 module Coupler
-  @@logger = nil
+  @logger = nil
+  @runner = nil
+
   def self.logger
-    @@logger
+    @logger
   end
 
   def self.logger=(logger)
-    @@logger = logger
+    @logger = logger
+  end
+
+  def self.runner
+    @runner ||= Runner.new
+  end
+
+  def self.specification
+    runner.specification
+  end
+
+  def self.options
+    runner.options
   end
 end
 

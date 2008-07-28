@@ -3,7 +3,7 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 describe Coupler::Options do
   describe ".parse" do
 
-    def do_parse(args = %w{foo.yml bar.yml --use-existing-scratch})
+    def do_parse(args = %w{foo.yml --use-existing-scratch})
       @options = Coupler::Options.parse(args)
     end
 
@@ -12,9 +12,9 @@ describe Coupler::Options do
       @options.should be_an_instance_of(Coupler::Options)
     end
 
-    it "should have filenames" do
+    it "should have a filename" do
       do_parse
-      @options.filenames.should == %w{foo.yml bar.yml}
+      @options.filename.should == "foo.yml"
     end
 
     it "should set use_existing_scratch" do
@@ -61,8 +61,8 @@ describe Coupler::Options do
       @opts.csv_output.should be_false
     end
 
-    it "should have no filenames" do
-      @opts.filenames.should == []
+    it "should have no filename" do
+      @opts.filename.should == nil
     end
 
     it "should have a db limit of 10000" do

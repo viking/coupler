@@ -2,9 +2,11 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 describe Coupler::Runner do
   before(:each) do
-    @options     = Coupler::Options.new
-    @filenames   = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/sauce.yml")]
-    @scores      = stub(Coupler::Scores)
+    @options = Coupler::Options.new
+    @options.filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/sauce.yml")
+    Coupler::Options.stub!(:parse).and_return(@options)
+
+    @scores = stub(Coupler::Scores)
     @scores.stub!(:each).and_yield(1, 2, 100).and_yield(1, 3, 85).and_yield(1, 4, 60)
 
     @leet_set = stub("leetsauce records", :next => nil, :close => nil)
@@ -64,10 +66,27 @@ describe Coupler::Runner do
   end
 
   def create_runner
-    Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
+    Coupler::Runner.new
   end
 
-  it "should be a singleton"
+  it "should parse command line arguments" do
+    ARGV.clear; ARGV.push("foo.yml", "--db-limit", "10")
+    Coupler::Options.should_receive(:parse).with(ARGV).and_return(@options)
+    create_runner
+  end
+
+  it "should have options" do
+    create_runner.options.should == @options
+  end
+
+  it "should have a specification" do
+    create_runner.specification.should == YAML.load_file(@options.filename)
+  end
+
+  it "should use Coupler::Specification to build a spec" do
+    Coupler::Specification.should_receive(:parse).with(@options.filename).and_return(YAML.load_file(@options.filename))
+    create_runner
+  end
 
   it "should create a new resource for each item in 'resources'" do
     @resources.each_pair do |name, obj|
@@ -93,80 +112,30 @@ describe Coupler::Runner do
   end
 
   it "should require a scratch database resource" do
-    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")]
+    @options.filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scratch.yml")
     lambda { create_runner }.should raise_error
   end
 
   it "should require a scores database resource" do
-    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scores.yml")]
+    @options.filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-scores.yml")
     lambda { create_runner }.should raise_error
   end
 
   it "should not freak if there are no transformers" do
-    @filenames = [File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")]
+    @options.filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/no-transformers.yml")
     lambda { create_runner }.should_not raise_error
-  end
-
-  describe ".run" do
-    before(:each) do
-      @options.filenames = @filenames
-      @runner = stub("runner", :run => nil)
-      Coupler::Runner.stub!(:new).and_return(@runner)
-    end
-
-    it "should create a new Runner" do 
-      Coupler::Runner.should_receive(:new).with(YAML.load_file(@filenames[0]), @options).and_return(@runner)
-      Coupler::Runner.run(@options)
-    end
-
-    it "should run the runner" do
-      @runner.should_receive(:run)
-      Coupler::Runner.run(@options)
-    end
-    
-    it "should pass spec filenames that end in .erb through erubis" do
-      # erb rendered version is the same as non-erb version
-      spec = YAML.load_file(@filenames.first)
-      @filenames.first << '.erb'
-      Coupler::Runner.should_receive(:new).with(spec, @options).and_return(@runner)
-      Coupler::Runner.run(@options)
-    end
-
-    it "should accept a specification hash" do
-      spec = YAML.load_file(@filenames.first)
-      spec['resources'][0]['table']['name'] = "leetasaurus"
-      Coupler::Runner.should_receive(:new).with(spec, @options).and_return(@runner)
-      Coupler::Runner.run(spec, @options)
-    end
   end
 
   describe "#run" do
     before(:each) do
-      @runner = Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
+      @runner = create_runner 
     end
+
     it "should run each scenario" do
       @scenarios.values.each do |scenario|
         scenario.should_receive(:run).and_return(@scores)
       end
       @runner.run
-    end
-  end
-
-  describe ".transform" do
-    before(:each) do
-      @options.filenames = @filenames
-      @runner = stub("runner", :transform => nil)
-      Coupler::Runner.stub!(:new).and_return(@runner)
-    end
-
-    it "should create a new Runner" do 
-      Coupler::Runner.should_receive(:new).with(YAML.load_file(@filenames[0]), @options).and_return(@runner)
-      Coupler::Runner.transform(@options)
-    end
-
-    it "should call transform on the runner" do
-      @runner.should_receive(:transform)
-      Coupler::Runner.transform(@options)
     end
   end
 
@@ -196,7 +165,7 @@ describe Coupler::Runner do
       @transformers[:foo_filter].stub!(:transform).and_return("convoy")
       @transformers[:bar_bender].stub!(:transform).and_return(1337)
 
-      @runner = Coupler::Runner.new(YAML.load_file(@filenames[0]), @options)
+      @runner = create_runner 
     end
 
     describe "when using pre-existing scratch tables" do
@@ -214,7 +183,7 @@ describe Coupler::Runner do
         @runner.transform
       end
     end
-
+    
     it "should drop pre-existing scratch tables" do
       @resources[:scratch].should_receive(:drop_table).with('leetsauce')
       @resources[:scratch].should_receive(:drop_table).with('weaksauce')

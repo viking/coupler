@@ -1,38 +1,16 @@
 module Coupler
   class Runner 
-    class << self
-      def run(*args)
-        perform(:run, args)
-      end
+    attr_reader :options, :specification
+    def initialize
+      @options = Options.parse(ARGV)
+      filename = @options.filename
+      @specification = Specification.parse(filename)
 
-      def transform(*args)
-        perform(:transform, args)
-      end
-
-      private
-        def perform(action, args)
-          options = args.pop
-          spec    = args.first
-          unless spec
-            filename = options.filenames.first
-            if filename =~ /\.erb$/
-              spec = YAML.load(Erubis::Eruby.new(File.read(filename)).result(binding))
-            else
-              spec = YAML.load_file(filename)
-            end
-          end
-          runner = self.new(spec, options)
-          runner.send(action)
-        end
-    end
-
-    def initialize(spec, options)
-      @options = options
       @scratch = @scores = nil
       @transformers = {}
       @transformations = Hash.new { |h, k| h[k] = {:renaming => {}, :transforming => {}} }
-      @resources = spec['resources'].collect do |config|
-        r = Coupler::Resource.new(config, @options)
+      @resources = @specification['resources'].collect do |config|
+        r = Resource.new(config, @options)
         case config['name']
         when 'scratch'
           @scratch = r
@@ -45,11 +23,11 @@ module Coupler
       raise "you must provide a scratch resource!"  unless @scratch 
       raise "you must provide a scores resource!"   unless @scores
 
-      if spec['transformations']
-        spec['transformations']['functions'].each do |config|
-          @transformers[config['name']] = Coupler::Transformer.new(config)
+      if @specification['transformations']
+        @specification['transformations']['functions'].each do |config|
+          @transformers[config['name']] = Transformer.new(config)
         end
-        spec['transformations']['resources'].each do |resource, config|
+        @specification['transformations']['resources'].each do |resource, config|
           config.each do |info|
             field, tname, rename = info.values_at('field', 'function', 'rename from')
             if rename
@@ -63,7 +41,7 @@ module Coupler
           end
         end
       end
-      @scenarios = spec['scenarios'].collect { |config| Coupler::Scenario.new(config, @options) }
+      @scenarios = @specification['scenarios'].collect { |config| Scenario.new(config, @options) }
     end
 
     def run

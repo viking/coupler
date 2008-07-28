@@ -4,7 +4,7 @@ module Coupler
       options = Coupler::Options.new
       parser  = OptionParser.new do |opts|
         script_name = File.basename($0)
-        opts.banner = "Usage: #{script_name} [options] <filenames>"
+        opts.banner = "Usage: #{script_name} [options] <filename>"
         opts.on("-e", "--use-existing-scratch", "Don't recreate the scratch database") do
           options.use_existing_scratch = true
         end
@@ -28,12 +28,12 @@ module Coupler
         end
       end
       parser.parse!(args)
-      options.filenames = args
+      options.filename = args.first
 
       options
     end
 
-    attr_accessor :filenames, 
+    attr_accessor :filename, 
                   :use_existing_scratch,
                   :csv_output,
                   :db_limit,
@@ -45,7 +45,7 @@ module Coupler
     def initialize
       @use_existing_scratch = false
       @csv_output = false
-      @filenames  = []
+      @filename   = nil
       @db_limit   = 10000
       @dry_run    = false
       @log_level  = Logger::INFO

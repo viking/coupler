@@ -77,7 +77,9 @@ describe Coupler::Scenario do
     lambda { create_scenario }.should raise_error("can't find resource 'birth'")
   end
 
-  it "should create a 'scratch' resource for each of the scenario's resources"
+  it "should create a 'scratch' resource for each of the scenario's resources" do
+    pending
+  end
 
   it "should have a type of self-join" do
     s = create_scenario
