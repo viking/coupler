@@ -350,7 +350,7 @@ EOF
     end
 
     it "should return an integer" do
-      @result_set.stub!(:next).and_return([100])
+      @result_set.stub!(:next).and_return(["100"])
       @resource.count.should == 100
     end
   end

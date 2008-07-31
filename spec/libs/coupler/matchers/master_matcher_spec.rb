@@ -5,23 +5,27 @@ describe Coupler::Matchers::MasterMatcher do
     @options   = Coupler::Options.new
     @exact     = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
     @default   = stub("default matcher", :field => 'foo', :score => nil)
-    @scratch   = stub(Coupler::Resource, :keys => [1,2,3,4])
-    @scores_db = stub(Coupler::Resource, :drop_table => nil, :create_table => nil)
     @scores    = stub(Coupler::Scores)
     @recorder  = stub(Coupler::Scores::Recorder)
+    @scores_db = stub(Coupler::Resource, :drop_table => nil, :create_table => nil)
+    Coupler::Resource.stub!(:find).with('scores').and_return(@scores_db)
     @scores.stub!(:record).and_yield(@recorder)
 
-    @resources = [
-      stub("birth resource", :name => 'birth'),
-      stub("death resource", :name => 'death'),
+    @scratches = [
+      stub("birth scratch resource", :name => 'birth', :keys => [1,2,3,4,5]),
+      stub("death scratch resource", :name => 'death', :keys => [6,7,8]),
     ]
-    @parent = stub("parent scenario", :name => "foo", :resources => @resources)
+    @parent = stub("parent scenario", {
+      :name => "foo", :scratches => @scratches,
+      :field_list => %w{id foo bar}, :range => 40..100,
+      :combining_method => 'mean'
+    })
     @caches = {
-      :birth => stub("birth cache"),
-      :death => stub("death cache")
+      :birth => stub("birth cache", :auto_fill! => nil),
+      :death => stub("death cache", :auto_fill! => nil)
     }
     @caches.each_pair do |name, obj|
-      Coupler::Cache.stub!(:new).with(name.to_s, @options).and_return(obj)
+      Coupler::CachedResource.stub!(:new).with(name.to_s, @options).and_return(obj)
     end
 
     Coupler::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
@@ -29,19 +33,12 @@ describe Coupler::Matchers::MasterMatcher do
     Coupler::Scores.stub!(:new).and_return(@scores)
   end
 
-  def create_master(spec = {}, opts = {})
-    Coupler::Matchers::MasterMatcher.new({
-      'field list' => %w{id foo bar},
-      'combining method' => "mean",
-      'range'    => 40..100,
-      'scratch'  => @scratch,
-      'scores'   => @scores_db,
-      'parent'   => @parent
-    }.merge(spec), @options)
+  def create_master
+    Coupler::Matchers::MasterMatcher.new(@parent, @options)
   end
 
   def create_master_with_matchers(options = {})
-    m = create_master(options)
+    m = create_master
     m.add_matcher({'field' => 'bar', 'type' => 'exact'})
     m.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
     m
@@ -50,6 +47,11 @@ describe Coupler::Matchers::MasterMatcher do
   it "should have a field_list" do
     m = create_master
     m.field_list.should == %w{id foo bar}
+  end
+
+  it "should find the scores resource" do
+    Coupler::Resource.should_receive(:find).with('scores').and_return(@scores_db)
+    create_master
   end
 
   it "should have no matchers" do
@@ -69,7 +71,7 @@ describe Coupler::Matchers::MasterMatcher do
 
   it "should create caches for each resource" do
     @caches.each_pair do |name, obj|
-      Coupler::Cache.should_receive(:new).with(name.to_s, @options).and_return(obj)
+      Coupler::CachedResource.should_receive(:new).with(name.to_s, @options).and_return(obj)
     end
     create_master
   end
@@ -82,7 +84,7 @@ describe Coupler::Matchers::MasterMatcher do
     it "should create an exact matcher" do
       Coupler::Matchers::ExactMatcher.should_receive(:new).with({
         'field' => 'bar', 'type' => 'exact',
-        'resources' => @resources, 'scratch' => @scratch
+        'resources' => @scratches
       }, @options).and_return(@exact)
       @master.add_matcher({'field' => 'bar', 'type' => 'exact'})
     end
@@ -90,9 +92,16 @@ describe Coupler::Matchers::MasterMatcher do
     it "should create a default matcher" do
       Coupler::Matchers::DefaultMatcher.should_receive(:new).with({
         'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
-        'cache' => @cache
+        'caches' => @caches.values
       }, @options).and_return(@default)
       @master.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
+    end
+
+    it "should auto_fill! the caches only when adding the first default matcher" do
+      @caches.values.each { |c| c.should_receive(:auto_fill!) }
+      @master.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
+      @caches.values.each { |c| c.should_not_receive(:auto_fill!) }
+      @master.add_matcher({'field' => 'bar', 'formula' => 'a > b ? 100 : 0'})
     end
   end
 
@@ -104,18 +113,13 @@ describe Coupler::Matchers::MasterMatcher do
     it "should create a scores object" do
       Coupler::Scores.should_receive(:new).with({
         'combining method' => "mean",
-        'range' => 40..100,
-        'keys'  => [1, 2, 3, 4],
-        'num'   => 2,
+        'range'    => 40..100,
+        'num'      => 2,
+        'keys'     => [[1,2,3,4,5], [6,7,8]],
         'defaults' => [0, 0],
         'resource' => @scores_db,
-        'name' => 'foo'
+        'name'     => 'foo'
       }, @options).and_return(@scores)
-      @master.score
-    end
-
-    it "should get keys from the resource" do
-      @scratch.should_receive(:keys).and_return([1,2,3,4])
       @master.score
     end
 

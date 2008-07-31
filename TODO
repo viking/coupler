@@ -1,6 +1,6 @@
 Short term
 - add support for matching different tables
-- make runner a singleton; all classes get options from it
+- make all classes get options from the runner object
 
 Long term
 - add a probabilistic helper script to calculate statistics on given fields

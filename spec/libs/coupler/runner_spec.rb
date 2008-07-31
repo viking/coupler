@@ -17,16 +17,23 @@ describe Coupler::Runner do
     @may_buf  = stub("insert buffer for mayhem", :flush! => nil, :<< => nil)
     @resources = {
       :scores    => stub("scores resource",    :name => 'scores'),
-      :scratch   => stub("scratch resource",   :name => 'scratch', :create_table => nil, :drop_table => nil),
       :leetsauce => stub("leetsauce resource", :name => 'leetsauce', :select => @leet_set, :primary_key => "id"),
       :weaksauce => stub("weaksauce resource", :name => 'weaksauce', :select => @weak_set, :primary_key => "id"),
       :mayhem    => stub("mayhem resource",    :name => 'mayhem',    :select => @may_set,  :primary_key => "demolition"),
     }
-    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
-    @resources[:scratch].stub!(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
-    @resources[:scratch].stub!(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
+    @scratches = {
+      :leetsauce => stub("leetsauce scratch resource", :name => 'leetsauce_scratch', :create_table => nil, :drop_table => nil),
+      :weaksauce => stub("weaksauce scratch resource", :name => 'weaksauce_scratch', :create_table => nil, :drop_table => nil),
+      :mayhem    => stub("mayhem scratch resource",    :name => 'mayhem_scratch', :create_table => nil, :drop_table => nil),
+    }
+    @scratches[:leetsauce].stub!(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
+    @scratches[:weaksauce].stub!(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
+    @scratches[:mayhem].stub!(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
     @resources.each_pair do |name, obj|
       Coupler::Resource.stub!(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
+    end
+    @scratches.each_pair do |name, obj|
+      Coupler::Resource.stub!(:new).with(hash_including('name' => "#{name}_scratch"), @options).and_return(obj)
     end
 
     # this is a little excessive :(
@@ -92,6 +99,22 @@ describe Coupler::Runner do
     @resources.each_pair do |name, obj|
       Coupler::Resource.should_receive(:new).with(hash_including('name' => name.to_s), @options).and_return(obj)
     end
+    create_runner
+  end
+
+  it "should create a 'scratch' resource for each of the scenario's resources" do
+    Coupler::Resource.should_receive(:new).with(hash_including({
+      'name'  => 'leetsauce_scratch',
+      'table' => {'name' => 'leetsauce', 'primary key' => 'id'}
+    }), @options).and_return(@scratches[:leetsauce])
+    Coupler::Resource.should_receive(:new).with(hash_including({
+      'name'  => 'weaksauce_scratch',
+      'table' => {'name' => 'weaksauce', 'primary key' => 'id'}
+    }), @options).and_return(@scratches[:weaksauce])
+    Coupler::Resource.should_receive(:new).with(hash_including({
+      'name'  => 'mayhem_scratch',
+      'table' => {'name' => 'mayhem', 'primary key' => 'demolition'}
+    }), @options).and_return(@scratches[:mayhem])
     create_runner
   end
 
@@ -174,20 +197,20 @@ describe Coupler::Runner do
       end
 
       it "should not drop any tables" do
-        @resources[:scratch].should_not_receive(:drop_table)
+        @scratches.values.each { |obj| obj.should_not_receive(:drop_table) }
         @runner.transform
       end
 
       it "should not create any tables" do
-        @resources[:scratch].should_not_receive(:create_table)
+        @scratches.values.each { |obj| obj.should_not_receive(:create_table) }
         @runner.transform
       end
     end
     
     it "should drop pre-existing scratch tables" do
-      @resources[:scratch].should_receive(:drop_table).with('leetsauce')
-      @resources[:scratch].should_receive(:drop_table).with('weaksauce')
-      @resources[:scratch].should_receive(:drop_table).with('mayhem')
+      @scratches[:leetsauce].should_receive(:drop_table).with('leetsauce')
+      @scratches[:weaksauce].should_receive(:drop_table).with('weaksauce')
+      @scratches[:mayhem].should_receive(:drop_table).with('mayhem')
       @runner.transform
     end
 
@@ -199,17 +222,17 @@ describe Coupler::Runner do
     end
 
     it "should create one scratch table for each resource used" do
-      @resources[:scratch].should_receive(:create_table).with( 
+      @scratches[:leetsauce].should_receive(:create_table).with( 
         'leetsauce', 
         ["id int", "foo varchar(9)", "bar int", "zoidberg int", "farnsworth varchar(30)"], 
         [["foo", "bar"], ["foo", "zoidberg"], "farnsworth"]
       )
-      @resources[:scratch].should_receive(:create_table).with( 
+      @scratches[:weaksauce].should_receive(:create_table).with( 
         'weaksauce',
         ["id int", "foo varchar(9)", "nixon int", "farnsworth varchar(30)"],
         ["foo", "nixon", "farnsworth"]
       )
-      @resources[:scratch].should_receive(:create_table).with( 
+      @scratches[:mayhem].should_receive(:create_table).with( 
         'mayhem', ["demolition int", "pants varchar(7)", "shirt varchar(8)"], ["pants", "shirt"]
       )
       @runner.transform
@@ -284,9 +307,9 @@ describe Coupler::Runner do
     end
 
     it "should create an insert buffer from the scratch resource for each resource" do
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
-      @resources[:scratch].should_receive(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
+      @scratches[:leetsauce].should_receive(:insert_buffer).with(%w{id foo bar zoidberg farnsworth}).and_return(@leet_buf)
+      @scratches[:weaksauce].should_receive(:insert_buffer).with(%w{id foo nixon farnsworth}).and_return(@weak_buf)
+      @scratches[:mayhem].should_receive(:insert_buffer).with(%w{demolition pants shirt}).and_return(@may_buf)
       @runner.transform
     end
 

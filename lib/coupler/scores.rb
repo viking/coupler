@@ -22,14 +22,28 @@ module Coupler
       @name     = spec['name']
       @combining_method = spec['combining method']
 
-      @finalized  = false
-      @pass       = 0
-      @indices    = @keys.inject_with_index({}) { |hsh, (key, i)| hsh[key] = i; hsh }
-      @length     = @keys.length
-      @num_scores = @length * (@length - 1) / 2
-      @recorder   = Coupler::Scores::Recorder.new(self)
-      @defaults_for_passes = @defaults.inject([nil, 0]) { |arr, d| arr << d + arr.last }
+      @recorder  = Coupler::Scores::Recorder.new(self)
+      @finalized = false
+      @self_join = false
+      @pass      = 0
       @score_buffer = {}
+      @defaults_for_passes = @defaults.inject([nil, 0]) { |arr, d| arr << d + arr.last }
+
+      @lengths = []
+      @indices = []
+      if @keys.length == 1
+        # self-join time
+        @keys[1] = @keys[0]
+        @lengths = Array.new(2, @keys[0].length)
+        @indices = Array.new(2, get_indices(@keys[0]))
+        @self_join = true
+      else
+        @keys.each do |keys|
+          @lengths << keys.length
+          @indices << get_indices(keys) 
+        end
+      end
+      @num_scores = @lengths[0] * @lengths[1] 
 
       # set up resource
       @resource.drop_table(@name)
@@ -72,28 +86,23 @@ module Coupler
     end
 
     private
+      def get_indices(ary)
+        ary.inject_with_index({}) { |hsh, (key, i)| hsh[key] = i; hsh }
+      end
+
       def add(id1, id2, score)
-        begin
-          # switch if id2 comes before id1
-          index1  = @indices[id1]
-          index2  = @indices[id2]
-          if index2 < index1
-            tmp = index1; index1 = index2; index2 = tmp
-            tmp = id1; id1 = id2; id2 = tmp
-          end
-          
-          # calculate sid based on indices:
-          #   ( t(t-1)/2 ) - ( (t-x)(t-x-1)/2 ) - ( y-x )
-          #   where t = @length; x = index1; y = index2
-          n   = @length - index1 
-          sid = @num_scores - (n * (n-1) / 2) + (index2 - index1)
-
-          @score_buffer[sid] = [sid, id1, id2, score, 2 ** @pass]
-          do_score_replacement  if @score_buffer.length == @options.db_limit
-
-        rescue NoMethodError
+        # switch if id2 comes before id1
+        index1  = @indices[0][id1]
+        index2  = @indices[1][id2]
+        if index1.nil? || index2.nil? || (@self_join && index1 >= index2)
           raise "bad keys used for adding scores!"
         end
+        
+        # calculate sid based on indices: x * L2 + y
+        sid = (index1 * @lengths[1] + index2) + 1
+
+        @score_buffer[sid] = [sid, id1, id2, score, 2 ** @pass]
+        do_score_replacement  if @score_buffer.length == @options.db_limit
       end
 
       def do_score_replacement

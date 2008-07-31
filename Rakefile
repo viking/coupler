@@ -35,10 +35,10 @@ task :build do
     cd pwd
   end
   `make -C #{srcdir}`
-  if File.exist?(fn = "#{srcdir}/cache.so") || File.exist?(fn = "#{srcdir}/cache.bundle")
+  if File.exist?(fn = "#{srcdir}/cached_resource.so") || File.exist?(fn = "#{srcdir}/cached_resource.bundle")
     copy(fn, destdir)
   else
-    raise "can't find cache library"
+    raise "can't find cached_resource library"
   end
 end
 

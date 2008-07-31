@@ -6,52 +6,81 @@ module Coupler
       def initialize(spec, options)
         @options     = options
         @fields      = spec['field'] ? [spec['field']] : spec['fields']
-        @resource    = spec['resource']
+        @resources   = spec['resources']
         @false_score = spec['scores'] ? spec['scores'].first : 0
         @true_score  = spec['scores'] ? spec['scores'].last  : 100
-        @limit       = options.db_limit
       end
 
       def score(scores)
-        key = @resource.primary_key
-
-        # calculate scores
-        last   = nil 
-        group  = []
-        offset = 0
-        order  = @fields.join(", ")
-        columns = [key] + @fields
+        order = @fields.join(", ")
         conditions = "WHERE #{@fields.collect { |f| "#{f} IS NOT NULL" }.join(" AND ")}"
-        records = @resource.select({
-          :columns => columns, :order => order, 
-          :limit => @limit, :conditions => conditions 
-        })
-        while (true)
-          row = records.next
-          if row.nil?
-            records.close
-            offset += @limit
-            records = @resource.select({
-              :columns => columns, :order => order, :offset => offset,
-              :limit => @limit, :conditions => conditions
-            })
-            row = records.next
-            break if row.nil?
-          end
+        last = nil 
+        group = []
 
-          id = row.shift
-          if row == last
-            group.each do |gid|
-              scores.add(id, gid, @true_score)
+        if @resources.length == 1
+          columns = [@resources[0].primary_key] + @fields
+          set = @resources[0].select({
+            :columns => columns, :order => order, 
+            :auto_refill => true, :conditions => conditions 
+          })
+          while (row = set.next)
+            id = row.shift
+            if row == last
+              group.each do |gid|
+                scores.add(gid, id, @true_score)
+              end
+              group << id
+            else
+              group.clear
+              group << id
+              last = row
             end
-            group << id
-          else
-            group.clear
-            group << id
-            last = row
+          end
+        else
+          sets = @resources.collect do |resource|
+            resource.select({
+              :columns => [resource.primary_key] + @fields, :order => order,
+              :auto_refill => true, :conditions => conditions 
+            })
+          end
+          
+          # FIXME: it might be better if I had Resource#join or something,
+          #        but I'm feeling lazy right now.
+          # NOTE:  this algorithm assumes that the SQL comparisons
+          #        do the same thing as Ruby's, which might be a 
+          #        bad assumption
+          last  = sets[0].next
+          group = [last.shift]
+          row2  = sets[1].next
+          id2   = row2.shift
+          loop do 
+            row1 = sets[0].next
+            id1  = row1.shift   if row1
+            if row1 == last
+              group << id1
+            else
+              loop do
+                case row2 <=> last
+                when 0
+                  group.each do |gid|
+                    scores.add(gid, id2, @true_score)
+                  end
+                when 1
+                  break
+                end
+
+                row2 = sets[1].next
+                break if row2.nil?
+                id2 = row2.shift
+              end
+              break if row1.nil? || row2.nil?
+
+              group.clear
+              group << id1
+              last = row1
+            end
           end
         end
-        records.close
       end
     end
   end

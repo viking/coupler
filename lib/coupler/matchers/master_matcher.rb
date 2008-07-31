@@ -8,34 +8,38 @@ module Coupler
                   :resources,
                   :name
 
-      def initialize(spec, options)
-        @options = options
-        @combining_method = spec['combining method']
-        @field_list = spec['field list']   # NOTE: primary key should be first
-        @range      = spec['range']
-        @scratch    = spec['scratch']
-        @scores_db  = spec['scores']
-        @parent     = spec['parent']
+      def initialize(parent, options)
+        @parent    = parent
+        @options   = options
+        @matchers  = []
+        @indices   = []
+        @defaults  = []
+
+        @scores_db  = Resource.find('scores')
+        @range      = @parent.range
+        @field_list = @parent.field_list
         @name       = @parent.name
-        @resources  = @parent.resources
-        @matchers   = []
-        @indices    = []
-        @defaults   = []
-        @caches     = @resources.collect do |resource|
-          Cache.new(resource.name, @options)
+        @resources  = @parent.scratches
+        @combining_method = @parent.combining_method
+        @caches = @resources.collect do |resource|
+          CachedResource.new(resource.name, @options)
         end
+        @filled = false
       end
 
       def add_matcher(matcher)
         case matcher['type']
         when 'exact'
           matcher['resources'] = @resources
-          matcher['scratch']   = @scratch
           @matchers << ExactMatcher.new(matcher, @options)
           @defaults << @matchers.last.false_score
         else
-          matcher['index'] = @field_list.index(matcher['field'])
-          matcher['cache'] = @cache
+          unless @filled
+            @caches.each { |cache| cache.auto_fill! }
+            @filled = true
+          end
+          matcher['index']  = @field_list.index(matcher['field'])
+          matcher['caches'] = @caches
           @matchers << DefaultMatcher.new(matcher, @options)
           @defaults << 0
         end
@@ -45,7 +49,7 @@ module Coupler
         scores = Coupler::Scores.new({
           'combining method' => @combining_method,
           'range'    => @range,
-          'keys'     => @scratch.keys,
+          'keys'     => @resources.collect { |r| r.keys },
           'num'      => @matchers.length,
           'defaults' => @defaults,
           'resource' => @scores_db,
@@ -53,7 +57,7 @@ module Coupler
         }, @options)
 
         @matchers.each do |matcher|
-#          Coupler.logger.info("Scenario (#{name}): Matching on #{matcher.field}")  if Coupler.logger
+          Coupler.logger.info("Scenario (#{name}): Matching on #{matcher.field}")  if Coupler.logger
           scores.record { |r| matcher.score(r) }
         end
 

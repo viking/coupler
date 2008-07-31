@@ -1,1 +1,2 @@
-cache.so
+*.so
+*.bundle

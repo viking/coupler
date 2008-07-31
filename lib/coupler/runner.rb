@@ -6,22 +6,30 @@ module Coupler
       filename = @options.filename
       @specification = Specification.parse(filename)
 
-      @scratch = @scores = nil
-      @transformers = {}
-      @transformations = Hash.new { |h, k| h[k] = {:renaming => {}, :transforming => {}} }
-      @resources = @specification['resources'].collect do |config|
-        r = Resource.new(config, @options)
-        case config['name']
-        when 'scratch'
-          @scratch = r
-        when 'scores'
-          @scores = r
-        end
-        r
-      end
       # raise hell if there is no scratch or scores resource
-      raise "you must provide a scratch resource!"  unless @scratch 
-      raise "you must provide a scores resource!"   unless @scores
+      scratch_templ = @specification['resources'].detect { |r| r['name'] == 'scratch' }
+      raise "you must provide a scratch resource!"  unless scratch_templ 
+      raise "you must provide a scores resource!"   unless @specification['resources'].detect { |r| r['name'] == 'scores' }
+
+      @transformations = Hash.new { |h, k| h[k] = {:renaming => {}, :transforming => {}} }
+      @transformers    = {}
+      @resources       = {}
+      @scratches       = {}
+
+      @specification['resources'].each do |config|
+        name = config['name']
+        next  if name == 'scratch'
+
+        @resources[name] = Resource.new(config, @options)
+        unless %w{scratch scores}.include?(name)
+          # make a scratch resource to parallel this one
+          sconfig = config.merge({
+            'name'  => "#{name}_scratch",
+            'table' => config['table'].merge('name' => name)
+          })
+          @scratches[name] = Resource.new(sconfig, @options)
+        end
+      end
 
       if @specification['transformations']
         @specification['transformations']['functions'].each do |config|
@@ -55,7 +63,10 @@ module Coupler
 
       # set up schemas
       @schemas = Hash.new do |h, k|
-        h[k] = {:fields => [], :indices => [], :resource => nil, :info => {}}
+        h[k] = {
+          :fields => [], :indices => [], :info => {},
+          :resource => nil, :scratch => nil
+        }
       end
       @scenarios.each do |scenario|
         scenario.resources.each do |resource|
@@ -63,6 +74,7 @@ module Coupler
           fields = scenario.field_list
           unless @schemas.has_key?(rname)
             @schemas[rname][:resource] = resource
+            @schemas[rname][:scratch]  = @scratches[rname]
             @schemas[rname][:fields]   = [resource.primary_key]
           end
           @schemas[rname][:fields]  |= fields
@@ -73,6 +85,7 @@ module Coupler
       @schemas.each_pair do |rname, schema|
         # NOTE: resources with no transformations are just 'copied'
         resource = schema[:resource]
+        scratch  = schema[:scratch]
         
         # get transformer data types and arguments from the compiled
         # list of fields for each schema
@@ -102,12 +115,14 @@ module Coupler
         end
 
         # setup scratch database
-        setup_scratch_database(rname, schema)
+        columns = schema[:fields].collect { |f| "#{f} #{schema[:info][f]}" }
+        scratch.drop_table(rname)
+        scratch.create_table(rname, columns, schema[:indices])
 
         # refrigeron, disassemble!
         column_indices = columns_to_select.inject_with_index({}) {|h,(c,i)| h[c]=i; h}
         record_set     = resource.select(:columns => columns_to_select, :order => resource.primary_key, :auto_refill => true)
-        insert_buffer  = @scratch.insert_buffer(schema[:fields])
+        insert_buffer  = scratch.insert_buffer(schema[:fields])
 
         while (record = record_set.next)
           # transform each record
@@ -131,13 +146,6 @@ module Coupler
         end
         insert_buffer.flush!
       end
-    end
-
-    def setup_scratch_database(rname, schema)
-      @scratch.drop_table(rname)
-
-      columns = schema[:fields].collect { |f| "#{f} #{schema[:info][f]}" }
-      @scratch.create_table(rname, columns, schema[:indices])
     end
   end
 end

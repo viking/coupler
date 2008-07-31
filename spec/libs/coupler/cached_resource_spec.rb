@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
-describe Coupler::Cache do
+describe Coupler::CachedResource do
 
   before(:each) do
     @set = stub("result set", :close => nil, :next => nil)
@@ -12,13 +12,13 @@ describe Coupler::Cache do
 
   it "should find the scratch resource on create" do
     Coupler::Resource.should_receive(:find).and_return(@scratch)
-    Coupler::Cache.new('scratch', @options)
+    Coupler::CachedResource.new('scratch', @options)
   end
 
   describe "when --db-limit is 50000" do
     before(:each) do
       @options.db_limit = 50000
-      @cache = Coupler::Cache.new('scratch', @options)
+      @cache = Coupler::CachedResource.new('scratch', @options)
     end
 
     it "#auto_fill! should select all records from the database, 50000 at a time" do
@@ -47,7 +47,7 @@ describe Coupler::Cache do
   describe "when guaranteeing 10 records" do
     before(:each) do
       @options.guaranteed = 10
-      @cache = Coupler::Cache.new('scratch', @options)
+      @cache = Coupler::CachedResource.new('scratch', @options)
       (1..11).each do |i|
         @cache.add(i, [i, "data #{i}"])
       end
@@ -69,7 +69,7 @@ describe Coupler::Cache do
   
   describe do
     before(:each) do
-      @cache = Coupler::Cache.new('scratch', @options)
+      @cache = Coupler::CachedResource.new('scratch', @options)
     end
 
     describe "#count" do
@@ -153,6 +153,8 @@ describe Coupler::Cache do
             :columns => ["ID", "*"]
           }).and_return { @set.should_receive(:close); @set }
         end
+
+        it "should only select fields we need!"
 
         it "should find the record in the database" do
           @scratch.should_receive(:select).with({

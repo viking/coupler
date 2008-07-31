@@ -6,27 +6,17 @@ describe Coupler::Scenario do
     Coupler.stub!(:logger).and_return(@logger)
 
     @options = Coupler::Options.new
-    @resources = {
-      :scratch => stub('scratch resource', :insert => nil, :multi_update => nil, :set_table_and_key => nil),
-      :scores  => stub('scores resources'),
-      :birth   => stub('birth resource', {
-        :table => "birth_all", :primary_key => "ID", :name => 'birth',
-        :columns => { "ID" => "int", "MomSSN" => "varchar(9)", "MomDOB" => "date" }
-      }),
-      :death   => stub('birth resource', {
-        :table => "death_all", :primary_key => "ID", :name => 'death',
-        :columns => { "ID" => "int" }
-      })
-    }
-    @resources.each_pair do |name, obj|
-      Coupler::Resource.stub!(:find).with(name.to_s).and_return(obj)
+    @resources = {}
+    %w{scores birth death birth_scratch death_scratch}.each do |name|
+      @resources[name.to_sym] = obj = stub("#{name} resource")
+      Coupler::Resource.stub!(:find).with(name).and_return(obj)
     end
 
     @result  = stub(Coupler::Resource::ResultSet, :close => nil)
-    @cache   = stub(Coupler::Cache, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
+    @cache   = stub(Coupler::CachedResource, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
     @matcher = stub(Coupler::Matchers::MasterMatcher, :add_matcher => nil)
     Coupler::Matchers::MasterMatcher.stub!(:new).and_return(@matcher)
-    Coupler::Cache.stub!(:new).and_return(@cache)
+    Coupler::CachedResource.stub!(:new).and_return(@cache)
   end
 
   def create_scenario(spec = {}, opts = {})
@@ -57,14 +47,12 @@ describe Coupler::Scenario do
     s.name.should == 'family'
   end
 
-  it "should find the scratch resource" do
-    Coupler::Resource.should_receive(:find).with('scratch').and_return(@resources[:scratch])
-    create_scenario
+  it "should have a range" do
+    create_scenario.range.should == (50..100)
   end
 
-  it "should find the scores resource" do
-    Coupler::Resource.should_receive(:find).with('scores').and_return(@resources[:scores])
-    create_scenario
+  it "should have a combining method" do
+    create_scenario.combining_method.should == 'mean'
   end
 
   it "should find the birth resource" do
@@ -75,10 +63,6 @@ describe Coupler::Scenario do
   it "should raise an error if it can't find the resource" do
     Coupler::Resource.stub!(:find).and_return(nil)
     lambda { create_scenario }.should raise_error("can't find resource 'birth'")
-  end
-
-  it "should create a 'scratch' resource for each of the scenario's resources" do
-    pending
   end
 
   it "should have a type of self-join" do
@@ -92,14 +76,9 @@ describe Coupler::Scenario do
   end
 
   it "should create a master matcher" do
-    Coupler::Matchers::MasterMatcher.should_receive(:new).with({
-      'field list' => %w{MomSSN MomDOB},
-      'combining method' => 'mean',
-      'range' => 50..100,
-      'scratch' => @resources[:scratch],
-      'scores' => @resources[:scores],
-      'parent' => an_instance_of(Coupler::Scenario)
-    }, @options).and_return(@matcher)
+    Coupler::Matchers::MasterMatcher.should_receive(:new).with(
+      an_instance_of(Coupler::Scenario), @options
+    ).and_return(@matcher)
     create_scenario
   end
 
@@ -112,16 +91,6 @@ describe Coupler::Scenario do
     @matcher.should_receive(:add_matcher).with('field' => 'MomDOB', 'formula' => '(!a.nil? && a == b) ? 100 : 0')
     create_scenario
   end
-
-#  it "should create a cache with the scratch database" do
-#    Coupler::Cache.should_receive(:new).with('scratch', @options).and_return(@cache)
-#    create_scenario
-#  end
-#
-#  it "should use a guaranteed cache when specified in the YAML" do
-#    Coupler::Cache.should_receive(:new).with('scratch', @options, 1000).and_return(@cache)
-#    create_scenario('guarantee' => 1000)
-#  end
 
   it "should have a field list" do
     s = create_scenario
@@ -171,9 +140,20 @@ describe Coupler::Scenario do
       create_scenario
     end
 
+    it "should find birth and death scratch resources" do
+      Coupler::Resource.should_receive(:find).with('birth_scratch').and_return(@resources[:birth_scratch])
+      Coupler::Resource.should_receive(:find).with('death_scratch').and_return(@resources[:death_scratch])
+      create_scenario
+    end
+
     it "should have resources" do
       s = create_scenario
       s.resources.should == @resources.values_at(:birth, :death)
+    end
+
+    it "should have scratches" do
+      s = create_scenario
+      s.scratches.should == @resources.values_at(:birth_scratch, :death_scratch)
     end
   end
 
@@ -243,32 +223,6 @@ describe Coupler::Scenario do
       @logger.should_receive(:info).with("Scenario (family): Run start")
       do_run
     end
-
-#    it "should set the table and key of the scratch resource" do
-#      @resources[:scratch].should_receive(:set_table_and_key).with('birth', 'ID')
-#      do_run
-#    end
-#
-#    it "should clear the cache" do
-#      @cache.should_receive(:clear)
-#      do_run
-#    end
-#
-#    it "should auto-fill the cache" do
-#      @cache.should_receive(:auto_fill!)
-#      do_run
-#    end
-#
-#    it "should not auto-fill the cache if all matchers are exact" do
-#      @cache.should_not_receive(:auto_fill!)
-#      do_run(<<-EOF, :use_existing_scratch => true)
-#        matchers:
-#          - field: MomSSN
-#            type: exact
-#          - field: MomDOB
-#            type: exact
-#      EOF
-#    end
 
     it "should match all records" do
       @matcher.should_receive(:score).with(no_args()).and_return(@scores)

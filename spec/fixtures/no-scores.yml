@@ -3,18 +3,29 @@ resources:
     connection:
       adapter: sqlite3
       database: db/leetsauce.sql
-    table: leetzors
+    table:
+      name: records
+      primary key: id
   - name: weaksauce
     connection:
       adapter: sqlite3
       database: db/weaksauce.sql
-    table: weakzors
+    table:
+      name: records
+      primary key: id
+  - name: mayhem
+    connection:
+      adapter: sqlite3
+      database: db/mayhem.sql
+    table:
+      name: records
+      primary key: demolition
   - name: scratch
     connection:
       adapter: sqlite3
       database: db/scratch.sql
 
-transformers:
+transformations:
   functions:
     - name: foo_filter
       parameters:
@@ -44,11 +55,15 @@ transformers:
         arguments:
           fry: zoidberg
           leela: nixon
+      - field: farnsworth
+        rename from: wong
     weaksauce:
       - field: foo
-        function: foo
+        function: foo_filter
         arguments:
           string: foo
+      - field: farnsworth
+        rename from: brannigan
 
 scenarios:
   - name: leetsauce_foo
@@ -60,7 +75,7 @@ scenarios:
 
   - name: leetsauce_bar
     type: self-join
-    resource: weaksauce
+    resource: leetsauce
     matchers:
       - fields: [foo, zoidberg]
         type: exact
@@ -72,4 +87,20 @@ scenarios:
       - field: foo
         type: exact
       - field: nixon
+        type: exact
+
+  - name: utter_mayhem
+    type: self-join
+    resource: mayhem
+    matchers:
+      - field: pants
+        type: exact
+      - field: shirt
+        type: exact
+
+  - name: leet_weak
+    type: dual-join 
+    resources: [leetsauce, weeksauce]
+    matchers:
+      - field: farnsworth
         type: exact

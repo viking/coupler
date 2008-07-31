@@ -8,7 +8,7 @@ static VALUE sym_columns, sym_conditions, sym_offset, sym_limit;
 
 VALUE rb_mCoupler;
 VALUE rb_mCoupler_cResource;
-VALUE rb_mCoupler_cCache;
+VALUE rb_mCoupler_cCachedResource;
 VALUE rb_mObSpace;
 
 /* copied from st.c; I have no idea why it's not in st.h */
@@ -498,7 +498,7 @@ cache_auto_fill(self)
 }
 
 void
-Init_cache()
+Init_cached_resource()
 {
   id_find        = rb_intern("find");
   id_primary_key = rb_intern("primary_key");
@@ -520,16 +520,16 @@ Init_cache()
   rb_mCoupler = rb_const_get(rb_cObject, rb_intern("Coupler"));
   rb_mCoupler_cResource = rb_const_get(rb_mCoupler, rb_intern("Resource"));
   
-  rb_mCoupler_cCache = rb_define_class_under(rb_mCoupler, "Cache", rb_cObject);
-  rb_define_alloc_func(rb_mCoupler_cCache, cache_alloc);
-  rb_define_method(rb_mCoupler_cCache, "initialize", cache_init, 2);
-  rb_define_method(rb_mCoupler_cCache, "add", cache_add, 2);
-  rb_define_method(rb_mCoupler_cCache, "fetch", cache_fetch, -2);
-  rb_define_method(rb_mCoupler_cCache, "fetches", cache_fetches, 0);
-  rb_define_method(rb_mCoupler_cCache, "misses", cache_misses, 0);
-  rb_define_method(rb_mCoupler_cCache, "count", cache_count, 0);
-  rb_define_method(rb_mCoupler_cCache, "keys", cache_keys, 0);
-  rb_define_method(rb_mCoupler_cCache, "clear", cache_clear, 0);
-  rb_define_method(rb_mCoupler_cCache, "auto_fill!", cache_auto_fill, 0);
-  rb_define_private_method(rb_mCoupler_cCache, "reclaim", cache_reclaim, 1);
+  rb_mCoupler_cCachedResource = rb_define_class_under(rb_mCoupler, "CachedResource", rb_cObject);
+  rb_define_alloc_func(rb_mCoupler_cCachedResource, cache_alloc);
+  rb_define_method(rb_mCoupler_cCachedResource, "initialize", cache_init, 2);
+  rb_define_method(rb_mCoupler_cCachedResource, "add", cache_add, 2);
+  rb_define_method(rb_mCoupler_cCachedResource, "fetch", cache_fetch, -2);
+  rb_define_method(rb_mCoupler_cCachedResource, "fetches", cache_fetches, 0);
+  rb_define_method(rb_mCoupler_cCachedResource, "misses", cache_misses, 0);
+  rb_define_method(rb_mCoupler_cCachedResource, "count", cache_count, 0);
+  rb_define_method(rb_mCoupler_cCachedResource, "keys", cache_keys, 0);
+  rb_define_method(rb_mCoupler_cCachedResource, "clear", cache_clear, 0);
+  rb_define_method(rb_mCoupler_cCachedResource, "auto_fill!", cache_auto_fill, 0);
+  rb_define_private_method(rb_mCoupler_cCachedResource, "reclaim", cache_reclaim, 1);
 }

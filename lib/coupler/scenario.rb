@@ -2,28 +2,32 @@ module Coupler
   class Scenario
     DEBUG = ENV['DEBUG']
 
-    attr_reader :name, :type, :resources, :field_list, :indices
+    attr_reader :name, :type, :resources, :field_list, :indices, :range,
+                :combining_method, :scratches
     def initialize(spec, options)
       @options   = options
       @name      = spec['name']
       @type      = spec['type']
-      @guarantee = spec['guarantee']  # TODO: move this to command-line
       @range     = (r = spec['scoring']['range']).is_a?(Range) ? r : eval(r)
+      @combining_method = spec['scoring']['combining method']
       @indices   = []
       @resources = []
+      @scratches = []
 
+      rnames = []
       case @type
       when 'self-join'
-        @resources << Coupler::Resource.find(spec['resource'])
-        raise "can't find resource '#{spec['resource']}'"   unless @resources[0]
-        @primary_key = @resources[0].primary_key
+        rnames << spec['resource']
       when 'dual-join'
-        @resources = spec['resources'].collect { |n| Coupler::Resource.find(n) }
+        rnames |= spec['resources']
       else
         raise "unsupported scenario type"
       end
-      @scratch = Coupler::Resource.find('scratch')
-      @scores  = Coupler::Resource.find('scores')
+      rnames.each do |rname|  
+        @resources << Coupler::Resource.find(rname)
+        @scratches << Coupler::Resource.find("#{rname}_scratch")
+        raise "can't find resource '#{rname}'"  if @resources[-1].nil?
+      end
 
       # grab fields
       # NOTE: matcher fields can either be real database columns or the resulting field of
@@ -33,15 +37,7 @@ module Coupler
         list | (m['field'] ? [m['field']] : m['fields'])
       end
 
-      @master_matcher = Coupler::Matchers::MasterMatcher.new({
-        'field list'       => @field_list,
-        'combining method' => spec['scoring']['combining method'],
-        'range'            => @range,
-        'scratch'          => @scratch,
-        'scores'           => @scores,
-        'parent'           => self
-      }, @options)
-
+      @master_matcher = Coupler::Matchers::MasterMatcher.new(self, @options)
       spec['matchers'].each do |m|
         case m['type']
         when 'exact'

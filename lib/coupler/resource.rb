@@ -153,7 +153,7 @@ module Coupler
 
     def count
       set = select(:columns => ["COUNT(*)"])
-      n = set.next[0]
+      n = set.next[0].to_i
       set.close
       n
     end
