@@ -7,7 +7,7 @@ steps_for(:runner) do
   When "I run the scenarios" do
     Coupler::Resource.reset
     Coupler::Transformer.reset
-    Coupler::Runner.run(@spec, @options)
+    Coupler::Runner.new(@options).run
     @resource = Coupler::Resource.find('people')
     @total    = @resource.count.to_i
     @results  = Hash.new { |h, k| h[k] = {} }

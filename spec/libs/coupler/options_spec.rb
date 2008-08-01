@@ -80,5 +80,9 @@ describe Coupler::Options do
     it "should have a guaranteed of 0" do
       @opts.guaranteed.should == 0
     end
+
+    it "should have a nil specification" do
+      @opts.specification.should == nil
+    end
   end
 end

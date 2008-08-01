@@ -40,7 +40,8 @@ module Coupler
                   :dry_run,
                   :log_level,
                   :log_file,
-                  :guaranteed
+                  :guaranteed,
+                  :specification
 
     def initialize
       @use_existing_scratch = false

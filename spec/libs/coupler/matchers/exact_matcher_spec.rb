@@ -80,7 +80,7 @@ describe Coupler::Matchers::ExactMatcher do
 
         it "should select from resource, ordering by field and avoiding nulls" do
           @resources[0].should_receive(:select).with({
-            :columns => ['id', 'ssn'], :order => 'ssn',
+            :columns => ['id', 'ssn'], :order => 'ssn, id',
             :auto_refill => true, :conditions => "WHERE ssn IS NOT NULL"
           }).and_return(@record_set)
           @matcher.score(@recorder)
@@ -110,7 +110,7 @@ describe Coupler::Matchers::ExactMatcher do
 
         it "should select from resource, ordering by all fields" do
           @resources[0].should_receive(:select).with({
-            :columns => ['id', 'ssn', 'dob'], :order => 'ssn, dob', 
+            :columns => ['id', 'ssn', 'dob'], :order => 'ssn, dob, id', 
             :auto_refill => true, :conditions => "WHERE ssn IS NOT NULL AND dob IS NOT NULL"
           }).and_return(@record_set)
           @matcher.score(@recorder)
@@ -150,11 +150,11 @@ describe Coupler::Matchers::ExactMatcher do
 
         it "should select from each resource, ordering by field and avoiding nulls" do
           @resources[0].should_receive(:select).with({
-            :columns => ['id', 'fruit'], :order => 'fruit',
+            :columns => ['id', 'fruit'], :order => 'fruit, id',
             :auto_refill => true, :conditions => "WHERE fruit IS NOT NULL"
           }).and_return(@record_set1)
           @resources[1].should_receive(:select).with({
-            :columns => ['id2', 'fruit'], :order => 'fruit',
+            :columns => ['id2', 'fruit'], :order => 'fruit, id2',
             :auto_refill => true, :conditions => "WHERE fruit IS NOT NULL"
           }).and_return(@record_set2)
           @matcher.score(@recorder)
@@ -194,12 +194,12 @@ describe Coupler::Matchers::ExactMatcher do
         it "should select from each resource, ordering by all fields and avoiding nulls" do
           @resources[0].should_receive(:select).with({
             :columns => %w{id fruit veggie}, 
-            :order => "fruit, veggie", :auto_refill => true,
+            :order => "fruit, veggie, id", :auto_refill => true,
             :conditions => "WHERE fruit IS NOT NULL AND veggie IS NOT NULL"
           }).and_return(@record_set1)
           @resources[1].should_receive(:select).with({
             :columns => %w{id2 fruit veggie}, 
-            :order => "fruit, veggie", :auto_refill => true,
+            :order => "fruit, veggie, id2", :auto_refill => true,
             :conditions => "WHERE fruit IS NOT NULL AND veggie IS NOT NULL"
           }).and_return(@record_set2)
           @matcher.score(@recorder)

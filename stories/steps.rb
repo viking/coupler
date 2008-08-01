@@ -15,9 +15,10 @@ steps_for(:coupler) do
 
   Given "that I want to use the $adapter adapter" do |adapter|
     @spec = YAML.load(Erubis::Eruby.new(@spec_raw).result(binding))
+    @options.specification = @spec
   end
 
   When "I transform the resources" do
-    Coupler::Runner.transform(@spec, @options)
+    Coupler::Runner.new(@options).transform
   end
 end

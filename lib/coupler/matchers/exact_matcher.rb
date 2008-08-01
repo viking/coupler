@@ -18,7 +18,9 @@ module Coupler
         group = []
 
         if @resources.length == 1
-          columns = [@resources[0].primary_key] + @fields
+          key = @resources[0].primary_key
+          columns = [key] + @fields
+          order << ", #{key}" 
           set = @resources[0].select({
             :columns => columns, :order => order, 
             :auto_refill => true, :conditions => conditions 
@@ -38,8 +40,9 @@ module Coupler
           end
         else
           sets = @resources.collect do |resource|
+            key = resource.primary_key
             resource.select({
-              :columns => [resource.primary_key] + @fields, :order => order,
+              :columns => [key] + @fields, :order => order + ", #{key}",
               :auto_refill => true, :conditions => conditions 
             })
           end

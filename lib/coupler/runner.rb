@@ -1,10 +1,9 @@
 module Coupler
   class Runner 
     attr_reader :options, :specification
-    def initialize
-      @options = Options.parse(ARGV)
-      filename = @options.filename
-      @specification = Specification.parse(filename)
+    def initialize(options = nil)
+      @options = options || Options.parse(ARGV)
+      @specification = @options.specification || Specification.parse(@options.filename)
 
       # raise hell if there is no scratch or scores resource
       scratch_templ = @specification['resources'].detect { |r| r['name'] == 'scratch' }
@@ -23,7 +22,7 @@ module Coupler
         @resources[name] = Resource.new(config, @options)
         unless %w{scratch scores}.include?(name)
           # make a scratch resource to parallel this one
-          sconfig = config.merge({
+          sconfig = scratch_templ.merge({
             'name'  => "#{name}_scratch",
             'table' => config['table'].merge('name' => name)
           })

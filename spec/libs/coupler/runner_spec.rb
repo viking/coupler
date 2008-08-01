@@ -90,6 +90,17 @@ describe Coupler::Runner do
     create_runner.specification.should == YAML.load_file(@options.filename)
   end
 
+  it "should use custom options if given" do
+    Coupler::Options.should_not_receive(:parse).and_return(@options)
+    Coupler::Runner.new(@options)
+  end
+
+  it "should use a custom specification if given" do
+    @options.specification = YAML.load_file(@options.filename) 
+    @options.filename = nil
+    Coupler::Runner.new(@options).specification.should == @options.specification
+  end
+
   it "should use Coupler::Specification to build a spec" do
     Coupler::Specification.should_receive(:parse).with(@options.filename).and_return(YAML.load_file(@options.filename))
     create_runner
@@ -103,18 +114,21 @@ describe Coupler::Runner do
   end
 
   it "should create a 'scratch' resource for each of the scenario's resources" do
-    Coupler::Resource.should_receive(:new).with(hash_including({
+    Coupler::Resource.should_receive(:new).with({
       'name'  => 'leetsauce_scratch',
-      'table' => {'name' => 'leetsauce', 'primary key' => 'id'}
-    }), @options).and_return(@scratches[:leetsauce])
-    Coupler::Resource.should_receive(:new).with(hash_including({
+      'table' => {'name' => 'leetsauce', 'primary key' => 'id'},
+      'connection' => {'database' => 'db/scratch.sql', 'adapter' => 'sqlite3'}
+    }, @options).and_return(@scratches[:leetsauce])
+    Coupler::Resource.should_receive(:new).with({
       'name'  => 'weaksauce_scratch',
-      'table' => {'name' => 'weaksauce', 'primary key' => 'id'}
-    }), @options).and_return(@scratches[:weaksauce])
-    Coupler::Resource.should_receive(:new).with(hash_including({
+      'table' => {'name' => 'weaksauce', 'primary key' => 'id'},
+      'connection' => {'database' => 'db/scratch.sql', 'adapter' => 'sqlite3'}
+    }, @options).and_return(@scratches[:weaksauce])
+    Coupler::Resource.should_receive(:new).with({
       'name'  => 'mayhem_scratch',
-      'table' => {'name' => 'mayhem', 'primary key' => 'demolition'}
-    }), @options).and_return(@scratches[:mayhem])
+      'table' => {'name' => 'mayhem', 'primary key' => 'demolition'},
+      'connection' => {'database' => 'db/scratch.sql', 'adapter' => 'sqlite3'}
+    }, @options).and_return(@scratches[:mayhem])
     create_runner
   end
 

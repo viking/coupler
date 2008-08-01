@@ -3,8 +3,8 @@ steps_for(:transformer) do
   Then "there should be a scratch table named $table with primary key $key" do |table, key|
     @table    = table
     @key      = key
-    @scratch  = Coupler::Resource.find('scratch')
-    @scratch.set_table_and_key(table, key)
+    @scratch  = Coupler::Resource.find("#{table}_scratch")
+    @scratch.close    # sqlite3 bitches about schema changes sometimes
     lambda { @scratch.select(:first, :columns => [key]) }.should_not raise_error
   end
 
