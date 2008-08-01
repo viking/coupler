@@ -42,6 +42,24 @@ task :build do
   end
 end
 
+desc "Set up coupler environment"
+task :bootstrap => :build do
+  require 'rubygems/installer'
+  %w{kwalify erubis fastercsv}.each do |name|
+      system "rm -fr vendor/#{name}*"
+      version = all = Gem::Requirement.default
+      dep = Gem::Dependency.new name, version
+      specs_and_sources = Gem::SpecFetcher.fetcher.fetch dep, all
+      specs_and_sources.sort_by { |spec,| spec.version }
+      spec, source_uri = specs_and_sources.last
+      gem_file_name = "#{spec.full_name}.gem"
+
+      system "wget #{source_uri}/gems/#{gem_file_name} -O vendor/#{name}.gem"
+      Gem::Installer.new("vendor/#{name}.gem").unpack("vendor/#{name}")
+      rm "vendor/#{name}.gem"
+  end
+end
+
 namespace :db do
   namespace :test do
     desc 'Prepare the test databases and load the schema'

@@ -3,11 +3,16 @@ require 'yaml'
 require 'enumerator'
 require 'optparse'
 
-require 'rubygems'
-require 'sqlite3'
-require 'mysql'
-require 'fastercsv'
-require 'erubis'
+# vendor libraries
+%w(rubygems sqlite3 mysql fastercsv erubis kwalify).each do |dependency|
+  begin
+    dir = File.expand_path(File.dirname(__FILE__) + "/../vendor/#{dependency}/lib")
+    $: << dir   if File.directory?(dir) 
+    require dependency
+  rescue LoadError
+    abort "Unable to load #{dependency}"
+  end
+end
 
 require 'buffer'
 
