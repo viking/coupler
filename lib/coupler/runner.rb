@@ -3,7 +3,7 @@ module Coupler
     attr_reader :options, :specification
     def initialize(options = nil)
       @options = options || Options.parse(ARGV)
-      @specification = @options.specification || Specification.parse(@options.filename)
+      @specification = @options.specification || Specification.parse_file(@options.filename)
 
       # raise hell if there is no scratch or scores resource
       scratch_templ = @specification['resources'].detect { |r| r['name'] == 'scratch' }

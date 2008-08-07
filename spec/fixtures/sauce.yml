@@ -34,7 +34,7 @@ transformations:
     - name: foo_filter
       parameters:
         - name: string
-          regex: "(\d)\1{8}"
+          regexp: "(\d)\1{8}"
       formula: "nil"
       default: "string"
       type: varchar(9)
@@ -76,6 +76,9 @@ scenarios:
     matchers:
       - fields: [foo, bar]
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100
 
   - name: leetsauce_bar
     type: self-join
@@ -83,6 +86,9 @@ scenarios:
     matchers:
       - fields: [foo, zoidberg]
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100
   
   - name: weaksauce_foo
     type: self-join
@@ -92,6 +98,9 @@ scenarios:
         type: exact
       - field: nixon
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
 
   - name: utter_mayhem
     type: self-join
@@ -101,6 +110,9 @@ scenarios:
         type: exact
       - field: shirt
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
 
   - name: leet_weak
     type: dual-join 
@@ -108,3 +120,6 @@ scenarios:
     matchers:
       - field: farnsworth
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100

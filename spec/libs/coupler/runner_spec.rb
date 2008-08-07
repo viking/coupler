@@ -102,7 +102,7 @@ describe Coupler::Runner do
   end
 
   it "should use Coupler::Specification to build a spec" do
-    Coupler::Specification.should_receive(:parse).with(@options.filename).and_return(YAML.load_file(@options.filename))
+    Coupler::Specification.should_receive(:parse_file).with(@options.filename).and_return(YAML.load_file(@options.filename))
     create_runner
   end
 
