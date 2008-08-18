@@ -3,7 +3,7 @@ require File.dirname(__FILE__) + "/../../spec_helper.rb"
 describe Coupler::Options do
   describe ".parse" do
 
-    def do_parse(args = %w{foo.yml --use-existing-scratch})
+    def do_parse(args = %w{foo.yml})
       @options = Coupler::Options.parse(args)
     end
 
@@ -15,11 +15,6 @@ describe Coupler::Options do
     it "should have a filename" do
       do_parse
       @options.filename.should == "foo.yml"
-    end
-
-    it "should set use_existing_scratch" do
-      do_parse
-      @options.use_existing_scratch.should be_true
     end
 
     it "should set csv_output" do
@@ -51,10 +46,6 @@ describe Coupler::Options do
   describe "default settings" do
     before(:each) do
       @opts = Coupler::Options.new
-    end
-
-    it "should not use_existing_scratch" do
-      @opts.use_existing_scratch.should be_false
     end
 
     it "should not output csv's" do

@@ -33,7 +33,6 @@ describe Coupler::Scenario do
         combining method: mean
         range: 50..100
     EOF
-    @options.use_existing_scratch = true   if opts[:use_existing_scratch]
     @options.csv_output = true             if opts[:csv_output]
     Coupler::Scenario.new(spec, @options)
   end

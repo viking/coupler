@@ -74,8 +74,6 @@ module Coupler
     end
 
     def transform
-      return  if @options.use_existing_scratch
-
       # set up schemas
       @schemas = Hash.new do |h, k|
         h[k] = {

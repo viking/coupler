@@ -92,7 +92,7 @@ describe Coupler::Matchers::MasterMatcher do
     it "should create a default matcher" do
       Coupler::Matchers::DefaultMatcher.should_receive(:new).with({
         'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
-        'caches' => @caches.values
+        'caches' => @caches.values_at(:birth, :death)
       }, @options).and_return(@default)
       @master.add_matcher({'field' => 'foo', 'formula' => 'a > b ? 100 : 0'})
     end

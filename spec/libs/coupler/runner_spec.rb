@@ -213,22 +213,6 @@ describe Coupler::Runner do
       @runner = create_runner 
     end
 
-    describe "when using pre-existing scratch tables" do
-      before(:each) do
-        @options.use_existing_scratch = true
-      end
-
-      it "should not drop any tables" do
-        @scratches.values.each { |obj| obj.should_not_receive(:drop_table) }
-        @runner.transform
-      end
-
-      it "should not create any tables" do
-        @scratches.values.each { |obj| obj.should_not_receive(:create_table) }
-        @runner.transform
-      end
-    end
-    
     it "should drop pre-existing scratch tables" do
       @scratches[:leetsauce].should_receive(:drop_table).with('leetsauce')
       @scratches[:weaksauce].should_receive(:drop_table).with('weaksauce')
