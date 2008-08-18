@@ -1,6 +1,5 @@
 module Coupler
   module Specification
-
     class Validator < Kwalify::Validator
       SCHEMA = YAML.load(<<-YAML)
         type: map
@@ -127,28 +126,36 @@ module Coupler
 
       # NOTE: this isn't stateless anymore; I need to do some namespacing
       def validate(*args)
-        @namespaces = {
+        # chicken/egg problem; sometimes resources is processed after
+        # transformations, which means that no resource name is valid
+        @valid_names = {
           'resource' => [], 'function' => [],
           'parameters' => {}
         } 
+        @candidates = {
+          'resource' => [], 'function' => [],
+          'parameters' => Hash.new { |h, k| h[k] = [] } 
+        }
+
         @warnings = []
-        original_validate(*args)
+        errors = original_validate(*args)
+        _check_names(errors)
+        errors
       end
       
       def validate_hook(value, rule, path, errors)
         return  unless value
-
-        # namespacing
-        if %w{resource function}.include?(rule.name)
-          @namespaces[rule.name] << value['name']
-        end
 
         # custom validation
         msgs  = case rule.name
                 when 'table'
                   _require_map_keys(value, %w{name primary\ key})
                 when 'function'
+                  _add_valid_name('function', value['name']) # namespacing
                   _validate_function(value)
+                when 'resource'
+                  _add_valid_name('resource', value['name']) # namespacing
+                  nil
                 when 'parameter'
                   _require_map_keys(value, %w{name})
                 when 'resource transformation'
@@ -159,22 +166,59 @@ module Coupler
                   _validate_matcher(value, path)
                 when 'namespaced by resource'
                   names = value.is_a?(Hash)? value.keys : [value]
-                  _require_valid_names(names, "resource")
+                  names.each do |name|
+                    # namespacing
+                    _add_name_candidate(name, path, "resource")
+                  end
+                  nil
                 when /^namespaced by (.+)$/
-                  _require_valid_names(value, $1)
+                  # namespacing
+                  _add_name_candidate(value, path, $1)
+                  nil
                 end
         _add_errors(errors, msgs, path) if msgs
       end
 
       private
-        def _require_valid_names(names, category)
-          errors = []
-          names.each do |name|
-            if !@namespaces[category].include?(name)
-              errors << "key '#{name}' is not a valid #{category} name."
+        def _check_names(errors) 
+          %w{resource function}.each do |category| 
+            names = @valid_names[category]
+            @candidates[category].each do |(name, path)|
+              if !names.include?(name)
+                msg = "key '#{name}' is not a valid #{category} name."
+                _add_error(errors, msg, path)
+              end
             end
           end
-          errors
+
+          # check parameters
+          @candidates['parameters'].each do |fname, candidates|
+            candidates.each do |hsh|
+              names  = hsh[:arguments]
+              path   = hsh[:path]
+              vnames = @valid_names['parameters'][fname]
+              if vnames
+                bad     = names - vnames
+                missing = vnames - names
+                bad.each do |key|
+                  msg = "argument '#{key}' is not valid for the '#{fname}' function."
+                  _add_error(errors, msg, path)
+                end
+                missing.each do |key|
+                  msg = Kwalify.msg(:required_nokey) % key
+                  _add_error(errors, msg, path)
+                end
+              end
+            end
+          end
+        end
+
+        def _add_valid_name(category, name)
+          @valid_names[category] << name
+        end
+
+        def _add_name_candidate(name, path, category)
+          @candidates[category] << [name, path]
         end
 
         def _require_map_keys(map, keys)
@@ -190,7 +234,7 @@ module Coupler
           if (params = function['parameters']) && params.is_a?(Array)
             # save key names for later validation
             keys = params.collect { |p| p['name'] }
-            @namespaces['parameters'][function['name']] = keys 
+            @valid_names['parameters'][function['name']] = keys 
 
             if params.any? { |p| p['regexp'] } && function['default'].nil?
               msgs << "key 'default' is required when there are one or more parameter restrictions."
@@ -211,18 +255,9 @@ module Coupler
             msgs = _require_map_keys(transformation, %w{field function arguments})
             fname, args = transformation.values_at('function', 'arguments')
             if args && fname
-              pkeys = @namespaces['parameters'][fname]
-              akeys = args.keys
-              if pkeys
-                bad     = akeys - pkeys
-                missing = pkeys - akeys
-                bad.each do |key|
-                  msgs << "argument '#{key}' is not valid for the '#{fname}' function."
-                end
-                missing.each do |key|
-                  msgs << Kwalify.msg(:required_nokey) % key
-                end
-              end
+              @candidates['parameters'][fname] << { 
+                :arguments => args.keys, :path => path
+              }
             end
           end
           msgs
@@ -266,8 +301,12 @@ module Coupler
 
         def _add_errors(errors, msgs, path)
           msgs.each do |msg|
-            errors << Kwalify::ValidationError.new(msg, path)
+            _add_error(errors, msg, path)
           end
+        end
+
+        def _add_error(errors, msg, path)
+          errors << Kwalify::ValidationError.new(msg, path)
         end
 
         def _add_warning(msg, path)
@@ -277,16 +316,20 @@ module Coupler
 
     class << self
       def parse_file(filename)
-        if filename =~ /\.erb$/
-          parse(Erubis::Eruby.new(File.read(filename)).result(binding))
+        string = if filename =~ /\.erb$/
+          Erubis::Eruby.new(File.read(filename)).result(binding)
         else
-          parse(File.read(filename))
+          File.read(filename)
         end
+        parse(string)
       end
 
       def parse(string)
+        YAML.load(string)
+      end
+
+      def validate!(obj)
         @validator ||= Validator.new
-        obj = YAML.load(string)
         obj.extend(self)
         obj.errors = @validator.validate(obj)
         obj.warnings = @validator.warnings

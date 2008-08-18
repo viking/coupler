@@ -36,6 +36,9 @@ scenarios:
     matchers:
       - fields: [foo, bar]
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100
 
   - name: leetsauce_bar
     type: self-join
@@ -43,6 +46,9 @@ scenarios:
     matchers:
       - fields: [foo, zoidberg]
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100
   
   - name: weaksauce_foo
     type: self-join
@@ -52,6 +58,9 @@ scenarios:
         type: exact
       - field: nixon
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
 
   - name: utter_mayhem
     type: self-join
@@ -61,10 +70,16 @@ scenarios:
         type: exact
       - field: shirt
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..200
 
   - name: leet_weak
     type: dual-join 
-    resources: [leetsauce, weeksauce]
+    resources: [leetsauce, weaksauce]
     matchers:
       - field: farnsworth
         type: exact
+    scoring:
+      combining method: sum
+      range: 0..100

@@ -2,6 +2,7 @@ require 'rubygems'
 require 'spec'
 require 'ruby-debug'
 require 'yaml'
+require 'collections/sequenced_hash'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")
 require 'coupler'

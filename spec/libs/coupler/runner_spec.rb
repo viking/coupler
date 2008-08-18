@@ -102,8 +102,16 @@ describe Coupler::Runner do
   end
 
   it "should use Coupler::Specification to build a spec" do
-    Coupler::Specification.should_receive(:parse_file).with(@options.filename).and_return(YAML.load_file(@options.filename))
+    obj = YAML.load_file(@options.filename)
+    obj.extend(Coupler::Specification)
+    Coupler::Specification.should_receive(:parse_file).with(@options.filename).and_return(obj)
+    Coupler::Specification.should_receive(:validate!).with(obj).and_return(obj)
     create_runner
+  end
+
+  it "should print specification errors and exit" do
+    @options.filename = File.expand_path(File.dirname(__FILE__) + "/../../fixtures/bogus.yml")
+    lambda { create_runner }.should raise_error(RuntimeError)
   end
 
   it "should create a new resource for each item in 'resources'" do

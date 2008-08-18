@@ -14,6 +14,10 @@ describe Coupler::Specification do
     Coupler::Specification.parse(string)
   end
 
+  def validate(obj)
+    Coupler::Specification.validate!(obj)
+  end
+
   it "should load the file and return a hash" do
     parse_file.should == @raw_spec 
   end
@@ -101,13 +105,25 @@ describe Coupler::Specification do
     end
 
     def do_parse
-      parse_string(@spec.to_yaml)
+      validate(parse_string(@spec.to_yaml))
+    end
+
+    def do_ordered_parse(keys)
+      hsh = parse_string(@spec.to_yaml)
+      sh  = SequencedHash.new
+      keys.each { |k| sh[k] = hsh[k].dup }
+      validate(sh)
     end
 
     it "should pass without any changes" do
       x = do_parse
       x.errors.should == []
       x.warnings.should == []
+    end
+
+    it "should should pass when out of order" do
+      res = do_ordered_parse(%w{transformations resources scenarios})
+      res.errors.should == []
     end
 
     it "should require a map" do

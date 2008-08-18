@@ -1,0 +1,5 @@
+this:
+  yaml: file
+  is:
+    - quite
+    - bogus

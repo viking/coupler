@@ -5,6 +5,22 @@ module Coupler
       @options = options || Options.parse(ARGV)
       @specification = @options.specification || Specification.parse_file(@options.filename)
 
+      # check specification for errors and warnings
+      Specification.validate!(@specification)
+      if !@specification.warnings.empty?
+        $stderr.puts "Specification warnings:"
+        @specification.warnings.each do |w|
+          $stderr.puts "  [#{w.path}] #{w.message}"
+        end
+      end
+      if !@specification.errors.empty?
+        $stderr.puts "Specification errors:"
+        @specification.errors.each do |e|
+          $stderr.puts "  [#{e.path}] #{e.message}"
+        end
+        raise "specification errors found!"
+      end
+
       # raise hell if there is no scratch or scores resource
       scratch_templ = @specification['resources'].detect { |r| r['name'] == 'scratch' }
       raise "you must provide a scratch resource!"  unless scratch_templ 
