@@ -1,6 +1,6 @@
-require File.dirname(__FILE__) + "/../../spec_helper.rb"
+require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-describe Coupler::Transformer do
+describe Coupler::Transformers::DefaultTransformer do
 
   @@num = 1
   def xformer_name
@@ -16,7 +16,7 @@ describe Coupler::Transformer do
     }.merge(options)
     options['name'] = xformer_name  unless options['name']
 
-    Coupler::Transformer.new(options)
+    Coupler::Transformers::DefaultTransformer.new(options)
   end
 
   it "should have a name" do
@@ -196,85 +196,10 @@ describe Coupler::Transformer do
     end
   end
 
-  describe ".find" do
-    it "should find a previously created transformer by name" do
-      xf = create_xformer
-      Coupler::Transformer.find(xf.name).should == xf
-    end
-  end
-
-  describe ".reset" do
-    it "should remove all transformers" do
-      xf1 = create_xformer
-      xf2 = create_xformer
-      Coupler::Transformer.reset
-      Coupler::Transformer.find(xf1.name).should be_nil
-      Coupler::Transformer.find(xf2.name).should be_nil
-    end
-  end
-
   describe "#transform" do
     it "should require a Hash as an argument" do
       xf = create_xformer('parameters' => ['x'])
       lambda { xf.transform("foo") }.should raise_error
-    end
-  end
-end
-
-describe Coupler::Transformer::Parameter do
-  it "should have a name" do
-    p = Coupler::Transformer::Parameter.new('name' => 'x')
-    p.name.should == 'x'
-  end
-
-  it "should have a coerce_to value" do
-    p = Coupler::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'integer')
-    p.coerce_to.should == 'integer'
-  end
-
-  it "should have a regexp" do
-    p = Coupler::Transformer::Parameter.new({
-      'name' => 'x',
-      'coerce_to' => 'integer',
-      'regexp' => '\d+'
-    })
-    p.regexp.should == /\d+/
-  end
-
-  describe "#valid?" do
-    it "should return true if there are no conditions" do
-      p = Coupler::Transformer::Parameter.new('name' => 'x')
-      p.valid?(123).should be_true
-    end
-
-    it "should return true if there is a regexp and value matches" do
-      p = Coupler::Transformer::Parameter.new({
-        'name' => 'x',
-        'regexp' => '\d+'
-      })
-      p.valid?(123).should be_true
-    end
-  end
-
-  describe "#convert" do
-    it "should return the value if no coercion needs to be done" do
-      p = Coupler::Transformer::Parameter.new('name' => 'x')
-      p.convert("blah").should == "blah"
-    end
-
-    it "should convert value to Fixnum if 'integer'" do
-      p = Coupler::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'integer')
-      p.convert("123").should == 123
-    end
-
-    it "should convert value to String if 'string'" do
-      p = Coupler::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'string')
-      p.convert(123).should == "123"
-    end
-
-    it "should not convert a nil to anything" do
-      p = Coupler::Transformer::Parameter.new('name' => 'x', 'coerce_to' => 'string')
-      p.convert(nil).should == nil
     end
   end
 end
