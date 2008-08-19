@@ -9,7 +9,7 @@ describe Coupler::Transformers do
       'name'    => 'pants'
     }.merge(options)
 
-    Coupler::Transformers::DefaultTransformer.new(options)
+    Coupler::Transformers::Default.new(options)
   end
 
   describe ".find" do

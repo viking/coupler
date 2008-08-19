@@ -1,27 +1,22 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-describe Coupler::Transformers::DefaultTransformer do
-
-  @@num = 1
-  def xformer_name
-    @@num += 1
-    "optimus_prime_#{@@num-1}"
+describe Coupler::Transformers::Default do
+  before(:each) do
+    Coupler::Transformers.reset
   end
 
   def create_xformer(options = {})
     options = {
       'formula' => 'x * 5',
       'default' => 'x',
-      'type'    => 'integer'
+      'type'    => 'integer',
+      'name'    => 'optimus_prime'
     }.merge(options)
-    options['name'] = xformer_name  unless options['name']
-
-    Coupler::Transformers::DefaultTransformer.new(options)
+    Coupler::Transformers::Default.new(options)
   end
 
-  it "should have a name" do
-    xf = create_xformer
-    xf.name.should match(/optimus_prime_\d+/)
+  it "should be a subclass of Base" do
+    Coupler::Transformers::Default.superclass.should == Coupler::Transformers::Base
   end
 
   it "should have a formula" do
@@ -41,11 +36,6 @@ describe Coupler::Transformers::DefaultTransformer do
 
   it "should not raise an error without a default" do
     create_xformer('default' => nil)
-  end
-
-  it "should raise an error if a transformer has a duplicate name" do
-    xf = create_xformer
-    lambda { create_xformer('name' => xf.name) }.should raise_error
   end
 
   describe "with 1 parameter" do
@@ -75,7 +65,7 @@ describe Coupler::Transformers::DefaultTransformer do
         end
 
         it "should add by 5" do
-          xf = create_xformer('formula' => 'x + 5', 'parameters' => ['x'])
+          xf = create_xformer('formula' => 'x + 5', 'parameters' => ['x'], 'name' => 'convoy')
           xf.transform('x' => 5).should == 10
         end
       end

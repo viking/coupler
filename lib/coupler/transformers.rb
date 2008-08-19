@@ -20,5 +20,6 @@ module Coupler
   end
 end
 
-require 'coupler/transformers/default_transformer'
+require 'coupler/transformers/base'
+require 'coupler/transformers/default'
 require 'coupler/transformers/parameter'

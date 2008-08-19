@@ -1,16 +1,13 @@
 module Coupler
   module Transformers
-    class DefaultTransformer
-      attr_reader :name, :formula, :parameters, :default, :data_type
-
+    class Default < Base
+      attr_reader :formula, :parameters, :default, :data_type
       def initialize(options)
-        @name       = options['name']
+        super(options)
         @formula    = options['formula']
         @default    = options['default']
         @data_type  = options['type']
         @parameters = []
-
-        Transformers.add(@name, self)
 
         @formula_template = @formula.dup
         @default_template = @default ? @default.dup : "nil"
