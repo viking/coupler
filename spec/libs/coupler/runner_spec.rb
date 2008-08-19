@@ -68,7 +68,7 @@ describe Coupler::Runner do
       :bar_bender => stub("bar_bender", :data_type => "int")
     }
     %w{foo_filter bar_bender}.each do |name|
-      Coupler::Transformer.stub!(:new).with(hash_including('name' => name)).and_return(@transformers[name.to_sym])
+      Coupler::Transformers.stub!(:create).with(hash_including('name' => name)).and_return(@transformers[name.to_sym])
     end
   end
 
@@ -142,7 +142,7 @@ describe Coupler::Runner do
 
   it "should create a new transformer for each item in 'transformers'" do
     %w{foo_filter bar_bender}.each do |name|
-      Coupler::Transformer.should_receive(:new).with(
+      Coupler::Transformers.should_receive(:create).with(
         hash_including('name' => name)
       ).and_return(@transformers[name.to_sym])
     end

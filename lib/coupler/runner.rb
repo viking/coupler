@@ -48,7 +48,7 @@ module Coupler
 
       if @specification['transformations']
         @specification['transformations']['functions'].each do |config|
-          @transformers[config['name']] = Transformer.new(config)
+          @transformers[config['name']] = Transformers.create(config)
         end
         @specification['transformations']['resources'].each do |resource, config|
           config.each do |info|

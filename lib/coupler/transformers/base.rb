@@ -4,7 +4,6 @@ module Coupler
       attr_reader :name
       def initialize(options)
         @name = options['name']
-        Transformers.add(@name, self)
       end
 
       def transform(*args)

@@ -1,17 +1,13 @@
 module Coupler
   module Transformers
-    @@transformers = {}
+    @@transformers = []
 
-    def self.add(name, obj)
-      if @@transformers.keys.include?(name)
-        raise "duplicate name"
-      else
-        @@transformers[name] = obj
-      end
-    end
+    def self.create(options)
+      name = options['name']
+      raise "duplicate name"  if @@transformers.include?(name)
 
-    def self.find(name)
-      @@transformers[name]
+      @@transformers << name
+      Default.new(options)
     end
 
     def self.reset

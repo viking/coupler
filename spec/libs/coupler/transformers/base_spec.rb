@@ -19,11 +19,6 @@ describe Coupler::Transformers::Base do
     create_xformer.name.should == "optimus_prime" 
   end
 
-  it "should raise an error if a transformer has a duplicate name" do
-    xf = create_xformer
-    lambda { create_xformer }.should raise_error
-  end
-
   describe "#transform" do
     it "should raise a NotImplementedError" do
       lambda { create_xformer.transform }.should raise_error(NotImplementedError)
