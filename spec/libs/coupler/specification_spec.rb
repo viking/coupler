@@ -19,7 +19,7 @@ describe Coupler::Specification do
   end
 
   it "should load the file and return a hash" do
-    parse_file.should == @raw_spec 
+    parse_file.should == @raw_spec
   end
 
   it "should load a string" do
@@ -28,7 +28,7 @@ describe Coupler::Specification do
 
   it "should pass a templated file through Erubis first" do
     @filename << ".erb"
-    parse_file.should == @raw_spec 
+    parse_file.should == @raw_spec
   end
 
   describe "#valid?" do
@@ -48,29 +48,23 @@ describe Coupler::Specification do
           - name: bar
             connection:
               adapter: sqlite3
-              database: db/bar.sqlite3 
+              database: db/bar.sqlite3
           - name: leet
             connection:
               adapter: sqlite3
-              database: db/leet.sqlite3 
+              database: db/leet.sqlite3
         transformations:
           functions:
             - name: shazbot
-              parameters:
-                - name: foo
-                - name: bar
-                  regexp: "baz$"
-                - name: pants
-                  regexp: "baz$"
-                  coerce_to: integer
-              formula: "foo / bar - pants + 1337"
-              default: "31337 * (foo + bar)"
+              parameters: [foo, bar, pants]
+              ruby: &shazbot "foo / bar - pants + 1337"
+              sql:  *shazbot
               type: int
             - name: boo
-              parameters:
-                - name: ghost
-              formula: "ghost * 5"
-              type: varchar(100)
+              parameters: [ghost]
+              ruby: &boo "ghost * 5"
+              sql:  *boo
+              type: same as ghost
           resources:
             foo:
               - field: argh
@@ -80,7 +74,13 @@ describe Coupler::Specification do
                   bar: matey
                   pants: rum
               - field: blast
-                rename from: curses
+                function: renamer
+                arguments:
+                  from: curses
+              - field: avast
+                function: trimmer
+                arguments:
+                  from: avast
         scenarios:
           - name: ninja
             type: self-join
@@ -169,7 +169,7 @@ describe Coupler::Specification do
         x = do_parse
         x.errors.should == []
       end
-      
+
       describe "/table" do
         it "should require a name" do
           @spec['resources'].first['table'].delete('name')
@@ -190,45 +190,45 @@ describe Coupler::Specification do
       end
 
       describe "/functions" do
+        before(:each) do
+          @functions = @spec['transformations']['functions']
+        end
+
         it "should have a name" do
-          @spec['transformations']['functions'].first.delete('name')
+          @functions.first.delete('name')
           do_parse.should_not be_valid
         end
 
         it "should have a unique name" do
-          @spec['transformations']['functions'][1]['name'] = 'shazbot'
+          @functions[1]['name'] = 'shazbot'
+          do_parse.should_not be_valid
+        end
+
+        it "should bitch if someone tries to use a reserved name" do
+          @functions[2] = @functions[1].dup
+          @functions[2]['name'] = 'trimmer'
+          @spec['transformations']['resources']['foo'].delete_at(2)
           do_parse.should_not be_valid
         end
 
         it "should have parameters" do
-          @spec['transformations']['functions'].first.delete('parameters')
+          @functions.first.delete('parameters')
           do_parse.should_not be_valid
         end
 
-        describe "/parameters" do
-          it "should have a name" do
-            @spec['transformations']['functions'][0]['parameters'][0].delete('name')
-            do_parse.should_not be_valid
-          end
-
-          it "should have a valid coerce_to value" do
-            @spec['transformations']['functions'][0]['parameters'][2]['coerce_to'] = 'dude'
-            do_parse.should_not be_valid
-          end
-        end
-
-        it "should have a formula" do
-          @spec['transformations']['functions'][0].delete('formula')
+        it "should have unique parameters" do
+          @functions[0]['parameters'] = %w{foo bar pants foo}
           do_parse.should_not be_valid
         end
 
-        it "should require a default if there are parameters with a regexp" do
-          @spec['transformations']['functions'][0].delete('default')
+        it "should have at least one formula" do
+          @functions[0].delete('ruby')
+          @functions[0].delete('sql')
           do_parse.should_not be_valid
         end
 
         it "should have a type" do
-          @spec['transformations']['functions'][0].delete('type')
+          @functions[0].delete('type')
           do_parse.should_not be_valid
         end
       end
@@ -278,12 +278,13 @@ describe Coupler::Specification do
           do_parse.should_not be_valid
         end
 
-        it "should warn about unused keys if renaming" do
-          @resources['foo'][1]['arguments'] = {}
-          @resources['foo'][1]['function']  = 'shazbot'
-          obj = do_parse
-          obj.errors.should == []
-          obj.should have(2).warnings
+        describe "stock functions" do
+          describe "trimmer" do
+            it "should require the 'from' argument" do
+              @resources['foo'][2]['arguments'].delete('from')
+              do_parse.should_not be_valid
+            end
+          end
         end
       end
     end

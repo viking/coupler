@@ -1,14 +1,9 @@
 require File.dirname(__FILE__) + "/../../spec_helper.rb"
 
 module ResourceHelper
-  @@num = 1
-  def resource_name
-    @@num += 1
-    "birth_#{@@num-1}"
-  end
-
   def create_resource(spec = {})
     spec = {
+      'name' => 'birth',
       'connection' => {
         'adapter'  => 'sqlite3',
         'database' => 'db/birth.sqlite3',
@@ -19,7 +14,6 @@ module ResourceHelper
         'primary key' => 'ID'
       }
     }.merge(spec)
-    spec['name'] ||= resource_name
     Coupler::Resource.new(spec, @options)
   end
 end
@@ -412,12 +406,21 @@ EOF
       @resource.insert_buffer(%w{id foo bar}).should == @insert_buffer
     end
   end
+
+  describe "#execute" do
+    it "should run an arbitrary query" do
+      @conn.should_receive(@query_method).with("blah blah foo bar").and_return(@query_result)
+      @resource.execute("blah blah foo bar")
+    end
+  end
 end
 
 describe Coupler::Resource do
   include ResourceHelper
 
   before(:each) do
+    Coupler::Resource.reset
+
     @result_set = stub("result set", :next => [], :close => nil)
     @insert_buffer = stub("insert buffer")
     @logger = stub(Logger, :info => nil, :debug => nil, :add => nil)
@@ -429,7 +432,7 @@ describe Coupler::Resource do
 
   it "should have a name" do
     r = create_resource
-    r.name.should match(/birth_\d+/) 
+    r.name.should == "birth" 
   end
 
   it "should raise an error if a resource is created with a conflicting name" do
@@ -643,7 +646,7 @@ describe Coupler::Resource do
   describe ".reset" do
     it "should remove all resources" do
       r1 = create_resource
-      r2 = create_resource
+      r2 = create_resource('name' => 'death')
       Coupler::Resource.reset
       Coupler::Resource.find(r1.name).should be_nil
       Coupler::Resource.find(r2.name).should be_nil

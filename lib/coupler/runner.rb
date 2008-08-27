@@ -1,5 +1,5 @@
 module Coupler
-  class Runner 
+  class Runner
     attr_reader :options, :specification
     def initialize(options = nil)
       @options = options || Options.parse(ARGV)
@@ -23,11 +23,10 @@ module Coupler
 
       # raise hell if there is no scratch or scores resource
       scratch_templ = @specification['resources'].detect { |r| r['name'] == 'scratch' }
-      raise "you must provide a scratch resource!"  unless scratch_templ 
+      raise "you must provide a scratch resource!"  unless scratch_templ
       raise "you must provide a scores resource!"   unless @specification['resources'].detect { |r| r['name'] == 'scores' }
 
-      @transformations = Hash.new { |h, k| h[k] = {:renaming => {}, :transforming => {}} }
-      @transformers    = {}
+      @transformations = Hash.new { |h, k| h[k] = {} }
       @resources       = {}
       @scratches       = {}
 
@@ -46,25 +45,9 @@ module Coupler
         end
       end
 
-      if @specification['transformations']
-        @specification['transformations']['functions'].each do |config|
-          @transformers[config['name']] = Transformers.create(config)
-        end
-        @specification['transformations']['resources'].each do |resource, config|
-          config.each do |info|
-            field, tname, rename = info.values_at('field', 'function', 'rename from')
-            if rename
-              @transformations[resource][:renaming][field] = rename
-            else
-              @transformations[resource][:transforming][field] = {
-                :arguments   => info['arguments'],
-                :transformer => tname ? @transformers[tname] : nil,
-              }
-            end
-          end
-        end
+      @scenarios = @specification['scenarios'].collect do |config|
+        Scenario.new(config, @options)
       end
-      @scenarios = @specification['scenarios'].collect { |config| Scenario.new(config, @options) }
     end
 
     def run
@@ -74,13 +57,21 @@ module Coupler
     end
 
     def transform
+      # build custom transformers
+      if @specification['transformations']
+        @specification['transformations']['functions'].each do |config|
+          Transformer.build(config)
+        end
+      end
+
       # set up schemas
       @schemas = Hash.new do |h, k|
         h[k] = {
           :fields => [], :indices => [], :info => {},
-          :resource => nil, :scratch => nil
+          :resource => nil, :scratch => nil, :xfs => {}
         }
       end
+
       @scenarios.each do |scenario|
         scenario.resources.each do |resource|
           rname  = resource.name
@@ -91,7 +82,17 @@ module Coupler
             @schemas[rname][:fields]   = [resource.primary_key]
           end
           @schemas[rname][:fields]  |= fields
-          @schemas[rname][:indices] |= scenario.indices 
+          @schemas[rname][:indices] |= scenario.indices
+        end
+      end
+
+      # create transformer instances
+      @specification['transformations']['resources'].each do |resource, config|
+        schema = @schemas[resource]
+        config.each do |info|
+          field, tname = info.values_at('field', 'function')
+          klass = Transformer[tname]
+          schema[:xfs][field] = klass.new(info)
         end
       end
 
@@ -99,32 +100,43 @@ module Coupler
         # NOTE: resources with no transformations are just 'copied'
         resource = schema[:resource]
         scratch  = schema[:scratch]
-        
+        xfs = schema[:xfs]
+
         # get transformer data types and arguments from the compiled
         # list of fields for each schema
         columns_to_select  = []
-        columns_to_inspect = []
-        rfields = @transformations[rname][:renaming]
-        xfields = @transformations[rname][:transforming]
-        schema[:fields].each do |field|
-          if (xfield = xfields[field])
+        columns_to_inspect = {}
+        rxfs = []
+
+        schema[:fields].each_with_index do |field, findex|
+          if (xf = xfs[field])
             # transforming
-            columns_to_select |= xfield[:arguments].values
-            schema[:info][field] = xfield[:transformer].data_type
+            if xf.has_sql?
+              columns_to_select |= [xf.sql]
+            else
+              # needs to be handled in ruby instead of sql
+              columns_to_select |= xf.arguments.values
+              xf.field_list = schema[:fields]
+              rxfs << [findex, xf]
+            end
+
+            if xf.sql_type =~ /same as (\w+)/
+              columns_to_inspect[field] = $1
+            else
+              schema[:info][field] = xf.sql_type
+            end
           else
-            # renaming or copying
-            field = rfields[field]  if rfields.has_key?(field)  # renamed
-            columns_to_select  |= [field]
-            columns_to_inspect |= [field]
+            # copying
+            columns_to_select |= [field]
+            columns_to_inspect[field] = field
           end
         end
 
         # get info about fields that we don't know yet
-        info = schema[:resource].columns(columns_to_inspect)
-        rfields.each_pair { |field, rfield| schema[:info][field] = info[rfield] }
+        info = schema[:resource].columns(columns_to_inspect.values)
         schema[:fields].each do |field|
           next  if schema[:info][field]
-          schema[:info][field] = info[field]
+          schema[:info][field] = info[columns_to_inspect[field]]
         end
 
         # setup scratch database
@@ -133,29 +145,15 @@ module Coupler
         scratch.create_table(rname, columns, schema[:indices])
 
         # refrigeron, disassemble!
-        column_indices = columns_to_select.inject_with_index({}) {|h,(c,i)| h[c]=i; h}
-        record_set     = resource.select(:columns => columns_to_select, :order => resource.primary_key, :auto_refill => true)
-        insert_buffer  = scratch.insert_buffer(schema[:fields])
+        record_set    = resource.select(:columns => columns_to_select, :order => resource.primary_key, :auto_refill => true)
+        insert_buffer = scratch.insert_buffer(schema[:fields])
 
         while (record = record_set.next)
-          # transform each record
-          xrecord = schema[:fields].collect do |field|
-            if (xfield = xfields[field])
-              # transforming
-              arguments, transformer = xfield.values_at(:arguments, :transformer)
-
-              # construct arguments and run transformation
-              args = arguments.inject({}) do |hsh, (key, val)|
-                hsh[key] = record[column_indices[val]]; hsh
-              end
-              transformer.transform(args)
-            else
-              # renaming and copying
-              field = rfields[field]  if rfields.has_key?(field)  # renaming
-              record[column_indices[field]]
-            end
+          # transform only the necessary columns
+          rxfs.each do |index, xf|
+            record[index] = xf.transform(record)
           end
-          insert_buffer << xrecord
+          insert_buffer << record
         end
         insert_buffer.flush!
       end

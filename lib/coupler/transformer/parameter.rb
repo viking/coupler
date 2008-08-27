@@ -1,5 +1,5 @@
 module Coupler
-  module Transformers
+  module Transformer
     class Parameter
       attr_reader :name, :coerce_to, :regexp, :data_type
 

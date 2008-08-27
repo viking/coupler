@@ -35,7 +35,7 @@ module Coupler
         @type      = parent.adapter
         @page_size = page_size
         @query     = query
-        @closed    = false 
+        @closed    = false
         @set       = nil
         @offset    = 0
       end
@@ -334,6 +334,10 @@ EOF
       retval
     end
 
+    def execute(query)
+      run_and_log_query(query, true)
+    end
+
     private
       def construct_query(options)
         # FIXME: put WHERE automatically into conditions, dummy.
@@ -345,7 +349,7 @@ EOF
         limit      = options[:limit]      ? " LIMIT #{options[:limit]}"    : ""
         offset     = options[:offset]     ? " OFFSET #{options[:offset]}"  : ""
         order      = options[:order]      ? " ORDER BY #{options[:order]}" : ""
-        
+
         "SELECT #{columns} FROM #{@table}#{conditions}#{order}#{limit}#{offset}"
       end
 

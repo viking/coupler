@@ -7,7 +7,7 @@ require 'optparse'
 %w(rubygems sqlite3 mysql fastercsv erubis kwalify).each do |dependency|
   begin
     dir = File.expand_path(File.dirname(__FILE__) + "/../vendor/#{dependency}/lib")
-    $: << dir   if File.directory?(dir) 
+    $: << dir   if File.directory?(dir)
     require dependency
   rescue LoadError
     abort "Unable to load #{dependency}"
@@ -49,5 +49,5 @@ require 'coupler/runner'
 require 'coupler/scenario'
 require 'coupler/scores'
 require 'coupler/specification'
-require 'coupler/transformers'
+require 'coupler/transformer'
 require 'coupler/cached_resource'

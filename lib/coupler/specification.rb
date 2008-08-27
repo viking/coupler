@@ -40,17 +40,9 @@ module Coupler
                       "name": { type: str, unique: yes }
                       "parameters":
                         type: seq
-                        sequence:
-                          - type: map
-                            name: parameter
-                            mapping:
-                              "name":   { type: str }
-                              "regexp": { type: str }
-                              "coerce_to": 
-                                type: str
-                                enum: [integer, string]
-                      "formula": { type: str }
-                      "default": { type: str }
+                        sequence: [ { type: str, unique: yes } ]
+                      "sql": { type: str }
+                      "ruby": { type: str }
                       "type": { type: str }
               "resources":
                 type: map
@@ -63,8 +55,7 @@ module Coupler
                         name: resource transformation
                         mapping:
                           "field": { type: str }
-                          "rename from": { type: str }
-                          "function": 
+                          "function":
                             type: str
                             name: namespaced by function
                           "arguments":
@@ -84,7 +75,7 @@ module Coupler
                   name: namespaced by resource
                 "resources":
                   type: seq
-                  sequence: 
+                  sequence:
                     - type: str
                       name: namespaced by resource
                 "matchers":
@@ -128,13 +119,19 @@ module Coupler
       def validate(*args)
         # chicken/egg problem; sometimes resources is processed after
         # transformations, which means that no resource name is valid
-        @valid_names = {
-          'resource' => [], 'function' => [],
-          'parameters' => {}
-        } 
+        @reserved_names = {
+          'function' => %w{trimmer renamer},
+        }
+        @valid_names = @reserved_names.merge({
+          'resource' => [],
+          'parameters' => {
+            'trimmer' => %w{from},
+            'renamer' => %w{from}
+          }
+        })
         @candidates = {
           'resource' => [], 'function' => [],
-          'parameters' => Hash.new { |h, k| h[k] = [] } 
+          'parameters' => Hash.new { |h, k| h[k] = [] }
         }
 
         @warnings = []
@@ -142,7 +139,7 @@ module Coupler
         _check_names(errors)
         errors
       end
-      
+
       def validate_hook(value, rule, path, errors)
         return  unless value
 
@@ -151,13 +148,14 @@ module Coupler
                 when 'table'
                   _require_map_keys(value, %w{name primary\ key})
                 when 'function'
-                  _add_valid_name('function', value['name']) # namespacing
-                  _validate_function(value)
+                  unless (m = _check_reserved('function', value['name']))
+                    _add_valid_name('function', value['name']) # namespacing
+                  end
+                  tmp = _validate_function(value)
+                  m ? tmp + [m] : tmp
                 when 'resource'
                   _add_valid_name('resource', value['name']) # namespacing
                   nil
-                when 'parameter'
-                  _require_map_keys(value, %w{name})
                 when 'resource transformation'
                   _validate_resource_transformation(value, path)
                 when 'scenario'
@@ -180,8 +178,8 @@ module Coupler
       end
 
       private
-        def _check_names(errors) 
-          %w{resource function}.each do |category| 
+        def _check_names(errors)
+          %w{resource function}.each do |category|
             names = @valid_names[category]
             @candidates[category].each do |(name, path)|
               if !names.include?(name)
@@ -221,6 +219,14 @@ module Coupler
           @candidates[category] << [name, path]
         end
 
+        def _check_reserved(category, name)
+          if @reserved_names[category].include?(name)
+            "'#{name}' is a reserved #{category} name."
+          else
+            nil
+          end
+        end
+
         def _require_map_keys(map, keys)
           errors = []
           keys.each do |key|
@@ -230,35 +236,24 @@ module Coupler
         end
 
         def _validate_function(function)
-          msgs = _require_map_keys(function, %w{name formula type parameters})
+          msgs = _require_map_keys(function, %w{name type parameters})
+          if !function['ruby'] && !function['sql']
+            msgs << "must have at least one of the following: [ruby, sql]."
+          end
           if (params = function['parameters']) && params.is_a?(Array)
             # save key names for later validation
-            keys = params.collect { |p| p['name'] }
-            @valid_names['parameters'][function['name']] = keys 
-
-            if params.any? { |p| p['regexp'] } && function['default'].nil?
-              msgs << "key 'default' is required when there are one or more parameter restrictions."
-            end
+            @valid_names['parameters'][function['name']] = params
           end
           msgs
         end
 
         def _validate_resource_transformation(transformation, path)
-          if transformation['rename from']
-            msgs = _require_map_keys(transformation, %w{field})
-            %w{function arguments}.each do |key|
-              if transformation[key]
-                _add_warning("key '#{key}' is ignored when using 'rename from'.", path)
-              end
-            end
-          else
-            msgs = _require_map_keys(transformation, %w{field function arguments})
-            fname, args = transformation.values_at('function', 'arguments')
-            if args && fname
-              @candidates['parameters'][fname] << { 
-                :arguments => args.keys, :path => path
-              }
-            end
+          msgs = _require_map_keys(transformation, %w{field function arguments})
+          fname, args = transformation.values_at('function', 'arguments')
+          if args && fname
+            @candidates['parameters'][fname] << {
+              :arguments => args.keys, :path => path
+            }
           end
           msgs
         end
