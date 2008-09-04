@@ -63,7 +63,9 @@ describe Coupler::Specification do
             - name: boo
               parameters: [ghost]
               ruby: &boo "ghost * 5"
-              sql:  *boo
+              sql:
+                mysql: "ghost * 5"
+                sqlite3: "ghost * 5"
               type: same as ghost
           resources:
             foo:
@@ -230,6 +232,18 @@ describe Coupler::Specification do
         it "should have a type" do
           @functions[0].delete('type')
           do_parse.should_not be_valid
+        end
+
+        describe "/sql" do
+          it "should have valid names when it's a map" do
+            @functions[1]['sql'] = {'small' => 'huge'}
+            do_parse.should_not be_valid
+          end
+
+          it "should not be a sequence" do
+            @functions[1]['sql'] = ['small']
+            do_parse.should_not be_valid
+          end
         end
       end
 

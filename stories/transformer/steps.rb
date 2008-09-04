@@ -13,27 +13,40 @@ steps_for(:transformer) do
     info[name][0, type.length].should == type
   end
 
-  Then "$field should have been transformed properly" do |field|
+  Then "foo should have been transformed properly" do
     resource = Coupler::Resource.find(@table)
-    columns  = field == 'foo' ? [@key, 'foo'] : [@key, 'zoidberg', 'nixon']
+    columns  = @table == 'leetsauce' ? [@key, 'foo'] : [@key, 'wicked']
     orig = resource.select(:all, :columns => columns, :order => @key)
-    curr = @scratch.select(:all, :columns => [@key, field], :order => @key)
+    curr = @scratch.select(:all, :columns => [@key, 'foo'], :order => @key)
     while (o_row = orig.next)
       c_row = curr.next
+      o_foo = o_row[1]; c_foo = c_row[1]
+      if o_foo =~ /^(\d)\1{8}$/
+        then c_foo.should be_nil
+        else c_foo.should == o_foo
+      end
+    end
+  end
 
-      case field
-      when 'foo'
-        o_foo = o_row[1]; c_foo = c_row[1]
-        if o_foo =~ /^(\d)\1{8}$/
-          then c_foo.should be_nil
-          else c_foo.should == o_foo
-        end
-      when 'bar'
-        o_zoid, o_nix = o_row[1, 2]; c_bar = c_row[1]
+  Then "bar should have been transformed properly" do
+    resource = Coupler::Resource.find(@table)
+    columns  = [@key, 'zoidberg', 'nixon']
+    orig = resource.select(:all, :columns => columns, :order => @key)
+    curr = @scratch.select(:all, :columns => [@key, 'bar'], :order => @key)
+    while (o_row = orig.next)
+      c_row = curr.next
+      o_zoid, o_nix = o_row[1, 2]; c_bar = c_row[1]
+#      begin
         if o_zoid < 10
           then c_bar.should == o_nix * 10
-          else c_bar.should == o_zoid / 5 
-        end
+          else c_bar.should == o_zoid / 5
+#          raise if c_bar != o_nix * 10
+#        else
+#          raise if c_bar != o_zoid / 5
+#        end
+#      rescue
+#        debugger
+#        p o_zoid, o_nix, c_bar
       end
     end
   end

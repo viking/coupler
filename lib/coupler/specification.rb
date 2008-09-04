@@ -41,7 +41,7 @@ module Coupler
                       "parameters":
                         type: seq
                         sequence: [ { type: str, unique: yes } ]
-                      "sql": { type: str }
+                      "sql": { type: any, name: sql formula }
                       "ruby": { type: str }
                       "type": { type: str }
               "resources":
@@ -153,6 +153,8 @@ module Coupler
                   end
                   tmp = _validate_function(value)
                   m ? tmp + [m] : tmp
+                when 'sql formula'
+                  _validate_sql_formula(value)
                 when 'resource'
                   _add_valid_name('resource', value['name']) # namespacing
                   nil
@@ -240,9 +242,24 @@ module Coupler
           if !function['ruby'] && !function['sql']
             msgs << "must have at least one of the following: [ruby, sql]."
           end
+
           if (params = function['parameters']) && params.is_a?(Array)
             # save key names for later validation
             @valid_names['parameters'][function['name']] = params
+          end
+          msgs
+        end
+
+        def _validate_sql_formula(sql)
+          msgs = []
+          case sql
+          when Hash
+            (sql.keys - %w{mysql sqlite3 default}).each do |key|
+              msgs << Kwalify.msg(:key_undefined) % key
+            end
+          when String
+          when Array
+            msgs << "not a string or a mapping"
           end
           msgs
         end
@@ -324,10 +341,10 @@ module Coupler
       end
 
       def validate!(obj)
-        @validator ||= Validator.new
+        validator = Validator.new
         obj.extend(self)
-        obj.errors = @validator.validate(obj)
-        obj.warnings = @validator.warnings
+        obj.errors = validator.validate(obj)
+        obj.warnings = validator.warnings
         obj
       end
     end

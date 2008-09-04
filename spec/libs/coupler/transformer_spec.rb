@@ -4,6 +4,7 @@ describe Coupler::Transformer do
   describe ".[]" do
     it "should return a class" do
       Coupler::Transformer["trimmer"].should == Coupler::Transformer::Trimmer
+      Coupler::Transformer["renamer"].should == Coupler::Transformer::Renamer
     end
   end
 

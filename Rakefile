@@ -24,15 +24,24 @@ task :stories, :story, :needs => [:build, "db:test:prepare"] do |t, args|
   end
 end
 
+desc "Clean project"
+task :clean do
+  srcdir  = File.dirname(__FILE__) + "/ext"
+  destdir = File.dirname(__FILE__) + "/lib/coupler"
+  files =  Dir["#{srcdir}/*"].select  { |fn| fn =~ /(\.(o|so|bundle)|\/Makefile)$/ }
+  files << Dir["#{destdir}/*"].select { |fn| fn =~ /\.(so|bundle)$/ }
+  rm(files, :verbose => true)
+end
+
 desc "Build project"
-task :build do
+task :build => :clean do
   srcdir  = File.dirname(__FILE__) + "/ext"
   destdir = File.dirname(__FILE__) + "/lib/coupler"
   if !File.exist?(File.join(srcdir, "Makefile"))
     prev = pwd
     cd srcdir
-    load File.join(srcdir, "extconf.rb")
-    cd pwd
+    system "ruby extconf.rb"
+    cd prev
   end
   `make -C #{srcdir}`
   if File.exist?(fn = "#{srcdir}/cached_resource.so") || File.exist?(fn = "#{srcdir}/cached_resource.bundle")
@@ -45,7 +54,7 @@ end
 desc "Set up coupler environment"
 task :bootstrap => :build do
   require 'rubygems/installer'
-  %w{kwalify erubis fastercsv}.each do |name|
+  %w{kwalify abstract erubis fastercsv}.each do |name|
       system "rm -fr vendor/#{name}*"
       version = all = Gem::Requirement.default
       dep = Gem::Dependency.new name, version

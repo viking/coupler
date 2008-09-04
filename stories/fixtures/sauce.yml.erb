@@ -32,21 +32,13 @@ resources:
 transformations:
   functions:
     - name: foo_filter
-      parameters:
-        - name: string
-          regexp: "(\d)\1{8}"
-      formula: "nil"
-      default: "string"
-      type: varchar(9)
+      parameters: [ string ]
+      ruby: "string =~ /^(\d)\1{8}$/ ? nil : string"
+      type: same as string
     - name: bar_bender
-      parameters:
-        - name: fry
-          coerce_to: integer
-        - name: leela
-          coerce_to: integer
-      formula: |
-        fry < 10 ? leela * 10 : fry / 5
-      default: "nil"
+      parameters: [fry, leela]
+      ruby: "fry < 10 ? leela * 10 : fry / 5"
+      sql: { mysql: "FLOOR(IF(fry < 10, leela * 10, fry / 5))" }
       type: int
   resources:
     leetsauce:
@@ -60,14 +52,18 @@ transformations:
           fry: zoidberg
           leela: nixon
       - field: farnsworth
-        rename from: wong
+        function: renamer
+        arguments:
+          from: wong
     weaksauce:
       - field: foo
         function: foo_filter
         arguments:
-          string: foo
+          string: wicked
       - field: farnsworth
-        rename from: brannigan
+        function: renamer
+        arguments:
+          from: brannigan
 
 scenarios:
   - name: leetsauce_foo
@@ -89,7 +85,7 @@ scenarios:
     scoring:
       combining method: sum
       range: 0..100
-  
+
   - name: weaksauce_foo
     type: self-join
     resource: weaksauce
@@ -115,7 +111,7 @@ scenarios:
       range: 0..200
 
   - name: leet_weak
-    type: dual-join 
+    type: dual-join
     resources: [leetsauce, weaksauce]
     matchers:
       - field: farnsworth

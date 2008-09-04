@@ -1,12 +1,35 @@
 steps_for(:runner) do
 
+  Given "the $name specification" do |name|
+    logger = Logger.new("log/story.log")
+    logger.level = Logger::DEBUG
+    Coupler.logger = logger
+
+    Coupler::Resource.reset
+
+    @options  = Coupler::Options.new
+    @spec_raw = File.read(File.join(FIXDIR, "#{name}.yml.erb"))
+  end
+
+  Given "that I want to use the $adapter adapter" do |adapter|
+    @adapter = adapter
+    @spec = YAML.load(Erubis::Eruby.new(@spec_raw).result(binding))
+    @options.specification = @spec
+  end
+
   Given "that I want CSV output files" do
     @options.csv_output = true
   end
 
+  Given "that I've already transformed the data" do
+    Coupler::Runner.new(@options).transform
+  end
+
   When "I run the scenarios" do
+    @spec = YAML.load(Erubis::Eruby.new(@spec_raw).result(binding))
+    @options.specification = @spec
+
     Coupler::Resource.reset
-    Coupler::Transformer.reset
     Coupler::Runner.new(@options).run
     @resource = Coupler::Resource.find('people')
     @total    = @resource.count.to_i

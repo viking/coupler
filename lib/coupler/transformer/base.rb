@@ -12,18 +12,26 @@ module Coupler
       def initialize(options)
         @field      = options['field']
         @arguments  = options['arguments']
+        @sql = {}
       end
 
       def has_sql?
         !!self.class.sql_template
       end
 
-      def sql
-        unless @sql
-          @sql = sub_argument_names("(#{self.class.sql_template})")
-          @sql << " AS #{@field}"
+      def sql(adapter = 'default')
+        unless @sql[adapter]
+          tmpl = self.class.sql_template
+          if tmpl.is_a?(Hash)
+            tmpl = tmpl.has_key?(adapter) ? tmpl[adapter] : tmpl['default']
+          end
+          return nil  if tmpl.nil?
+
+          result = sub_argument_names("(#{tmpl})")
+          result << " AS #{@field}"
+          @sql[adapter] = result
         end
-        @sql
+        @sql[adapter]
       end
 
       def sql_type

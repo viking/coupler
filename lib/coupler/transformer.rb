@@ -8,6 +8,7 @@ module Coupler
   module Transformer
     @@transformers = {
       "trimmer" => Trimmer,
+      "renamer" => Renamer,
     }
     def self.[](name)
       @@transformers[name]

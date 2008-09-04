@@ -62,8 +62,29 @@ describe Coupler::Transformer::Base do
       (create_instance.field_list = @field_list).should == @field_list
     end
 
-    it "#sql should return a sql string" do
-      create_instance.sql.should == "(bar * junk) AS blargh"
+    describe "#sql" do
+      it "should return a sql string" do
+        create_instance.sql.should == "(bar * junk) AS blargh"
+      end
+
+      it "should return a mysql-specific string if available" do
+        @klass.sql_template = {'mysql' => "foo / blah"}
+        create_instance.sql('mysql').should == "(bar / junk) AS blargh"
+      end
+
+      it "should return the default string if the sql_template is not a hash" do
+        create_instance.sql('mysql').should == "(bar * junk) AS blargh"
+      end
+
+      it "should return nil the sql_template is a hash and the key doesn't exist" do
+        @klass.sql_template = {'mysql' => "foo / blah"}
+        create_instance.sql('sqlite3').should be_nil
+      end
+
+      it "should use the default formula if sql_template is a hash and the given key doesn't exist" do
+        @klass.sql_template = {'default' => "foo / blah"}
+        create_instance.sql('mysql').should == "(bar / junk) AS blargh"
+      end
     end
 
     describe "#transform" do

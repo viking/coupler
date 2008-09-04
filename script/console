@@ -1,0 +1,7 @@
+#!/usr/bin/ruby1.8
+require 'irb'
+
+$:.unshift(File.dirname(__FILE__) + '/../lib')
+require 'coupler'
+
+IRB.start

@@ -72,7 +72,7 @@ describe Coupler::Runner do
         @scratches[name] = stub("#{name} scratch resource", :name => "#{name}_scratch", :create_table => nil, :drop_table => nil, :insert_buffer => @buffers[name])
         Coupler::Resource.stub!(:new).with(hash_including('name' => "#{name}_scratch"), @options).and_return(@scratches[name])
       end
-      @resources[name] = stub("#{name} resource", :name => name, :select => @sets[name], :primary_key => name == "mayhem" ? "demolition" : "id")
+      @resources[name] = stub("#{name} resource", :name => name, :select => @sets[name], :primary_key => name == "mayhem" ? "demolition" : "id", :adapter => 'mysql')
       Coupler::Resource.stub!(:new).with(hash_including('name' => name), @options).and_return(@resources[name])
     end
 
@@ -286,7 +286,12 @@ describe Coupler::Runner do
 
     it "should assign field_list for the necessary transformers" do
       @transformers['leetsauce_foo'].should_receive(:field_list=).with(%w{id foo bar zoidberg farnsworth})
-      @transformers['weaksauce_foo'].should_receive(:field_list=).with(%w{id foo nixon farnsworth})
+      @transformers['weaksauce_foo'].should_receive(:field_list=).with(%w{id wicked nixon farnsworth})
+      @runner.transform
+    end
+
+    it "should send the adapter name when getting a sql string" do
+      @transformers['leetsauce_bar'].should_receive(:sql).with('mysql').and_return(@@crap[:sql_formulae]['leetsauce_bar'])
       @runner.transform
     end
 
@@ -298,6 +303,15 @@ describe Coupler::Runner do
           "zoidberg", "(wong) AS farnsworth"
         ]
         hsh[:order].should == "id"
+        @sets['leetsauce']
+      end
+      @runner.transform
+    end
+
+    it "should select all necessary fields from leetsauce when no mysql formula is given for the bar transformer" do
+      @transformers['leetsauce_bar'].should_receive(:sql).with('mysql').and_return(nil)
+      @resources['leetsauce'].should_receive(:select) do |hsh|
+        (%w{zoidberg nixon} - hsh[:columns]).should == []
         @sets['leetsauce']
       end
       @runner.transform

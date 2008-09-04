@@ -7,7 +7,6 @@ steps_for(:coupler) do
     Coupler.logger = logger
 
     Coupler::Resource.reset
-    Coupler::Transformer.reset
 
     @options  = Coupler::Options.new
     @spec_raw = File.read(File.join(FIXDIR, "#{name}.yml.erb"))

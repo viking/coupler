@@ -5,6 +5,7 @@ require 'enumerator'
 
 pool = {
   'foo' => %w{123456789 234567891 345678912 444444444 567891234 678912345 789123456 891234567 999999999},
+  'wicked' => %w{123456789 234567891 345678912 444444444 567891234 678912345 789123456 891234567 999999999},
   'wong' => %w{ichi ni san yon go roku nana hachi kyuu juu},
   'brannigan' => %w{uno dos tres cuatro cinco seis siete ocho nueve dies},
   'pants' => %w{khakis jeans shorts trunks speedo skirt},
@@ -25,7 +26,7 @@ mydbh = Mysql.new('localhost', 'coupler', 'coupler', 'coupler_test_records')
     when 'leetsauce'
       [%w{id foo zoidberg nixon wong}, %w{int varchar(9) int int varchar(10)}]
     when 'weaksauce'
-      [%w{id foo nixon brannigan}, %w{int varchar(9) int varchar(10)}]
+      [%w{id wicked nixon brannigan}, %w{int varchar(9) int varchar(10)}]
     when 'mayhem'
       [%w{id pants shirt}, %w{int varchar(10) varchar(10)}]
     when 'people'
@@ -47,7 +48,7 @@ mydbh = Mysql.new('localhost', 'coupler', 'coupler', 'coupler_test_records')
       end
     end
     [mydbh, sldbh].each do |dbh|
-      dbh.query "INSERT INTO #{name} (#{columns.join(",")}) VALUES(#{values.join(",")})" 
+      dbh.query "INSERT INTO #{name} (#{columns.join(",")}) VALUES(#{values.join(",")})"
     end
   end
 end

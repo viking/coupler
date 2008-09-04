@@ -2,8 +2,8 @@ resources:
 <% %w{people}.each do |name| %>
   - name: <%= name %>
     connection:
-      adapter: <%= adapter %>
-    <% case adapter %>
+      adapter: <%= @adapter %>
+    <% case @adapter %>
     <% when 'sqlite3' %>
       database: db/test/<%= name %>.sqlite3
     <% when 'mysql' %>
@@ -18,8 +18,8 @@ resources:
 <% %w{scratch scores}.each do |name| %>
   - name: <%= name %>
     connection:
-      adapter: <%= adapter %>
-    <% case adapter %>
+      adapter: <%= @adapter %>
+    <% case @adapter %>
     <% when 'sqlite3' %>
       database: db/test/<%= name %>.sqlite3
     <% when 'mysql' %>
@@ -32,14 +32,13 @@ resources:
 transformations:
   functions:
     - name: downcaser
-      parameters:
-        - name: string
-      formula: "string.downcase"
+      parameters: [ string ]
+      ruby: string.downcase
+      sql:  LOWER(string)
       type: varchar(255)
     - name: date_formatter
-      parameters:
-        - name: date
-      formula: "date ? '%04d-%02d-%02d' % [date.year, date.month, date.day] : nil"
+      parameters: [ date ]
+      ruby: "date ? '%04d-%02d-%02d' % [date.year, date.month, date.day] : nil"
       type: char(10)
   resources:
     people:

@@ -104,19 +104,22 @@ module Coupler
 
         # get transformer data types and arguments from the compiled
         # list of fields for each schema
-        columns_to_select  = []
-        columns_to_inspect = {}
         rxfs = []
+        column_names = []
+        columns_to_select = []
+        columns_to_inspect = {}
 
         schema[:fields].each_with_index do |field, findex|
           if (xf = xfs[field])
             # transforming
-            if xf.has_sql?
-              columns_to_select |= [xf.sql]
+            sql_formula = xf.sql(resource.adapter)
+            if sql_formula
+              column_names |= [field]
+              columns_to_select |= [sql_formula]
             else
               # needs to be handled in ruby instead of sql
+              column_names |= xf.arguments.values
               columns_to_select |= xf.arguments.values
-              xf.field_list = schema[:fields]
               rxfs << [findex, xf]
             end
 
@@ -128,6 +131,7 @@ module Coupler
           else
             # copying
             columns_to_select |= [field]
+            column_names |= [field]
             columns_to_inspect[field] = field
           end
         end
@@ -147,6 +151,11 @@ module Coupler
         # refrigeron, disassemble!
         record_set    = resource.select(:columns => columns_to_select, :order => resource.primary_key, :auto_refill => true)
         insert_buffer = scratch.insert_buffer(schema[:fields])
+
+        # set field info
+        rxfs.each do |index, xf|
+          xf.field_list = column_names
+        end
 
         while (record = record_set.next)
           # transform only the necessary columns

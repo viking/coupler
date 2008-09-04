@@ -4,7 +4,7 @@ require 'enumerator'
 require 'optparse'
 
 # vendor libraries
-%w(rubygems sqlite3 mysql fastercsv erubis kwalify).each do |dependency|
+%w(rubygems sqlite3 mysql fastercsv abstract erubis kwalify).each do |dependency|
   begin
     dir = File.expand_path(File.dirname(__FILE__) + "/../vendor/#{dependency}/lib")
     $: << dir   if File.directory?(dir)
