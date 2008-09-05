@@ -1,10 +1,6 @@
-Short term
 - make all classes get options from the runner object
-
-Long term
 - add a probabilistic helper script to calculate statistics on given fields
-- create stock Transformer classes
 - add range attribute to each matcher for fine-tuning
 - add ability for transformers to chain
-- validate specifications with Kwalify
 - in the specification, use sequences instead of maps where more appropriate
+- find a way to only transform fields that have changed since last script/transformer
