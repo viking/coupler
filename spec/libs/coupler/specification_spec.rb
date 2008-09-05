@@ -83,6 +83,10 @@ describe Coupler::Specification do
                 function: trimmer
                 arguments:
                   from: avast
+              - field: small
+                function: downcaser
+                arguments:
+                  from: medium
         scenarios:
           - name: ninja
             type: self-join

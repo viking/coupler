@@ -120,13 +120,14 @@ module Coupler
         # chicken/egg problem; sometimes resources is processed after
         # transformations, which means that no resource name is valid
         @reserved_names = {
-          'function' => %w{trimmer renamer},
+          'function' => %w{trimmer renamer downcaser},
         }
         @valid_names = @reserved_names.merge({
           'resource' => [],
           'parameters' => {
             'trimmer' => %w{from},
-            'renamer' => %w{from}
+            'renamer' => %w{from},
+            'downcaser' => %w{from}
           }
         })
         @candidates = {
