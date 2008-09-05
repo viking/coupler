@@ -106,6 +106,8 @@ module Coupler
                       type: str
                       required: yes
                       pattern: "/^\\d+\\.{2,3}\\d+$/"
+          =:
+            type: any
       YAML
 
       alias :original_validate :validate

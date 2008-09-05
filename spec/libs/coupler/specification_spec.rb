@@ -137,6 +137,11 @@ describe Coupler::Specification do
       do_parse.should_not be_valid
     end
 
+    it "should allow other keys for aliasing and merging purposes" do
+      @spec['pants'] = "blargh!"
+      do_parse.should be_valid
+    end
+
     describe "/resources" do
       it "should require a sequence of maps" do
         @spec['resources'] = 'bar'
