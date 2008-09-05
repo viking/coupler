@@ -2,6 +2,7 @@ require 'coupler/transformer/parameter'
 require 'coupler/transformer/base'
 require 'coupler/transformer/trimmer'
 require 'coupler/transformer/renamer'
+require 'coupler/transformer/downcaser'
 require 'coupler/transformer/custom'
 
 module Coupler
@@ -9,6 +10,7 @@ module Coupler
     @@transformers = {
       "trimmer" => Trimmer,
       "renamer" => Renamer,
+      "downcaser" => Downcaser
     }
     def self.[](name)
       @@transformers[name]

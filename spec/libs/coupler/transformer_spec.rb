@@ -4,7 +4,12 @@ describe Coupler::Transformer do
   describe ".[]" do
     it "should return a class" do
       Coupler::Transformer["trimmer"].should == Coupler::Transformer::Trimmer
+    end
+
+    it "should find all built-in transformer classes" do
+      Coupler::Transformer["trimmer"].should == Coupler::Transformer::Trimmer
       Coupler::Transformer["renamer"].should == Coupler::Transformer::Renamer
+      Coupler::Transformer["downcaser"].should == Coupler::Transformer::Downcaser
     end
   end
 
