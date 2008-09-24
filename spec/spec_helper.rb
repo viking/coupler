@@ -1,7 +1,16 @@
 require 'rubygems'
 require 'spec'
-require 'ruby-debug'
 require 'yaml'
+
+# optionally get ruby-debug
+begin
+  require 'ruby-debug'
+rescue LoadError
+end
+
+# get collections/sequenced_hash
+dir = File.expand_path(File.dirname(__FILE__) + "/../vendor/collections/lib")
+$: << dir   if File.directory?(dir)
 require 'collections/sequenced_hash'
 
 $:.unshift(File.dirname(__FILE__) + "/../lib")

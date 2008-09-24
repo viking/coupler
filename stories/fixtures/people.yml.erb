@@ -31,11 +31,6 @@ resources:
 
 transformations:
   functions:
-    - name: downcaser
-      parameters: [ string ]
-      ruby: string.downcase
-      sql:  LOWER(string)
-      type: varchar(255)
     - name: date_formatter
       parameters: [ date ]
       ruby: "date ? '%04d-%02d-%02d' % [date.year, date.month, date.day] : nil"
@@ -45,11 +40,11 @@ transformations:
       - field: first_name
         function: downcaser
         arguments:
-          string: first_name
+          from: first_name
       - field: last_name
         function: downcaser
         arguments:
-          string: last_name
+          from: last_name
       - field: date_of_birth
         function: date_formatter
         arguments:

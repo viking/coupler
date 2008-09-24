@@ -1,27 +1,31 @@
 require 'fileutils'
 require 'rubygems'
 require 'rake'
-require 'spec'
-require 'spec/rake/spectask'
-include FileUtils
 
-desc "Run all specs"
-task :spec => :build
-Spec::Rake::SpecTask.new do |t|
-  t.spec_files = FileList['spec/**/*_spec.rb']
-  t.spec_opts = ['--options', 'spec/spec.opts']
-end
+begin
+  require 'spec'
+  require 'spec/rake/spectask'
+  include FileUtils
 
-desc "Run all stories"
-task :stories, :story, :needs => [:build, "db:test:prepare"] do |t, args|
-  require 'stories/helper'
-  if args.story
-    files = Dir["stories/#{args.story}/**/*.rb"]
-    files.select { |f| f =~ /steps\.rb$/ }.each { |f| files.delete(f) }
-    files.each { |f| load(f) }
-  else
-    load("stories/all.rb")
+  desc "Run all specs"
+  task :spec => :build
+  Spec::Rake::SpecTask.new do |t|
+    t.spec_files = FileList['spec/**/*_spec.rb']
+    t.spec_opts = ['--options', 'spec/spec.opts']
   end
+
+  desc "Run all stories"
+  task :stories, :story, :needs => [:build, "db:test:prepare"] do |t, args|
+    require 'stories/helper'
+    if args.story
+      files = Dir["stories/#{args.story}/**/*.rb"]
+      files.select { |f| f =~ /steps\.rb$/ }.each { |f| files.delete(f) }
+      files.each { |f| load(f) }
+    else
+      load("stories/all.rb")
+    end
+  end
+rescue LoadError
 end
 
 desc "Clean project"
@@ -54,18 +58,18 @@ end
 desc "Set up coupler environment"
 task :bootstrap => :build do
   require 'rubygems/installer'
-  %w{kwalify abstract erubis fastercsv}.each do |name|
-      system "rm -fr vendor/#{name}*"
-      version = all = Gem::Requirement.default
-      dep = Gem::Dependency.new name, version
-      specs_and_sources = Gem::SpecFetcher.fetcher.fetch dep, all
-      specs_and_sources.sort_by { |spec,| spec.version }
-      spec, source_uri = specs_and_sources.last
-      gem_file_name = "#{spec.full_name}.gem"
+  %w{kwalify abstract erubis fastercsv collections}.each do |name|
+    system "rm -fr vendor/#{name}*"
+    version = all = Gem::Requirement.default
+    dep = Gem::Dependency.new name, version
+    specs_and_sources = Gem::SpecFetcher.fetcher.fetch dep, all
+    specs_and_sources.sort_by { |spec,| spec.version }
+    spec, source_uri = specs_and_sources.last
+    gem_file_name = "#{spec.full_name}.gem"
 
-      system "wget #{source_uri}/gems/#{gem_file_name} -O vendor/#{name}.gem"
-      Gem::Installer.new("vendor/#{name}.gem").unpack("vendor/#{name}")
-      rm "vendor/#{name}.gem"
+    system "wget #{source_uri}/gems/#{gem_file_name} -O vendor/#{name}.gem"
+    Gem::Installer.new("vendor/#{name}.gem").unpack("vendor/#{name}")
+    rm "vendor/#{name}.gem"
   end
 end
 
