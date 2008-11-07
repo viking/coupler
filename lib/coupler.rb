@@ -42,7 +42,7 @@ module Coupler
 end
 
 require 'coupler/extensions'
-require 'coupler/matchers'
+require 'coupler/matcher'
 require 'coupler/options'
 require 'coupler/resource'
 require 'coupler/runner'

@@ -1,9 +1,9 @@
 module Coupler
-  module Matchers
-    class DefaultMatcher
+  module Matcher
+    class Default
       # FIXME: this is horribly slow.
 
-      attr_reader :field 
+      attr_reader :field
       def initialize(spec, options)
         @options = options
         @field   = spec['field']

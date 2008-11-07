@@ -14,8 +14,8 @@ describe Coupler::Scenario do
 
     @result  = stub(Coupler::Resource::ResultSet, :close => nil)
     @cache   = stub(Coupler::CachedResource, :add => nil, :fetch => nil, :clear => nil, :auto_fill! => nil)
-    @matcher = stub(Coupler::Matchers::MasterMatcher, :add_matcher => nil)
-    Coupler::Matchers::MasterMatcher.stub!(:new).and_return(@matcher)
+    @matcher = stub(Coupler::Matcher::Master, :add_matcher => nil)
+    Coupler::Matcher::Master.stub!(:new).and_return(@matcher)
     Coupler::CachedResource.stub!(:new).and_return(@cache)
   end
 
@@ -75,7 +75,7 @@ describe Coupler::Scenario do
   end
 
   it "should create a master matcher" do
-    Coupler::Matchers::MasterMatcher.should_receive(:new).with(
+    Coupler::Matcher::Master.should_receive(:new).with(
       an_instance_of(Coupler::Scenario), @options
     ).and_return(@matcher)
     create_scenario
@@ -157,7 +157,7 @@ describe Coupler::Scenario do
   end
 
   describe "#run" do
-    
+
     def do_run(spec = {}, opts = {})
       create_scenario(spec, opts).run
     end

@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-describe Coupler::Matchers::ExactMatcher do
+describe Coupler::Matcher::Exact do
   before(:each) do
     @record_set = stub("record result set", :close => nil)
     @resources = [
@@ -11,7 +11,7 @@ describe Coupler::Matchers::ExactMatcher do
   end
 
   def create_matcher(spec = {}, opts = {})
-    Coupler::Matchers::ExactMatcher.new({
+    Coupler::Matcher::Exact.new({
       'fields'    => %w{ssn},
       'type'      => 'exact',
       'resources' => @resources
@@ -37,8 +37,8 @@ describe Coupler::Matchers::ExactMatcher do
   end
 
   it "should have multiple fields" do
-    m = Coupler::Matchers::ExactMatcher.new({
-      'fields'    => %w{ssn dob}, 
+    m = Coupler::Matcher::Exact.new({
+      'fields'    => %w{ssn dob},
       'type'      => 'exact',
       'resources' => @resources
     }, @options)
@@ -46,8 +46,8 @@ describe Coupler::Matchers::ExactMatcher do
   end
 
   it "should have one field" do
-    m = Coupler::Matchers::ExactMatcher.new({
-      'field'     => 'ssn', 
+    m = Coupler::Matcher::Exact.new({
+      'field'     => 'ssn',
       'type'      => 'exact',
       'resources' => @resources
     }, @options)
@@ -110,7 +110,7 @@ describe Coupler::Matchers::ExactMatcher do
 
         it "should select from resource, ordering by all fields" do
           @resources[0].should_receive(:select).with({
-            :columns => ['id', 'ssn', 'dob'], :order => 'ssn, dob, id', 
+            :columns => ['id', 'ssn', 'dob'], :order => 'ssn, dob, id',
             :auto_refill => true, :conditions => "WHERE ssn IS NOT NULL AND dob IS NOT NULL"
           }).and_return(@record_set)
           @matcher.score(@recorder)
@@ -142,7 +142,7 @@ describe Coupler::Matchers::ExactMatcher do
 
           @record_set2 = stub("record set one")
           @record_set2.stub!(:next).and_return(
-            [6, "apple"], [8, "banana"], [7, "orange"], 
+            [6, "apple"], [8, "banana"], [7, "orange"],
             [10, "orange"], [9, "pineapple"], nil
           )
           @resources[1].stub!(:select).and_return(@record_set2)
@@ -193,12 +193,12 @@ describe Coupler::Matchers::ExactMatcher do
 
         it "should select from each resource, ordering by all fields and avoiding nulls" do
           @resources[0].should_receive(:select).with({
-            :columns => %w{id fruit veggie}, 
+            :columns => %w{id fruit veggie},
             :order => "fruit, veggie, id", :auto_refill => true,
             :conditions => "WHERE fruit IS NOT NULL AND veggie IS NOT NULL"
           }).and_return(@record_set1)
           @resources[1].should_receive(:select).with({
-            :columns => %w{id2 fruit veggie}, 
+            :columns => %w{id2 fruit veggie},
             :order => "fruit, veggie, id2", :auto_refill => true,
             :conditions => "WHERE fruit IS NOT NULL AND veggie IS NOT NULL"
           }).and_return(@record_set2)

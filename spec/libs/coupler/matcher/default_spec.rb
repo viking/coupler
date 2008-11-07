@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-describe Coupler::Matchers::DefaultMatcher do
+describe Coupler::Matcher::Default do
   before(:each) do
     @options = Coupler::Options.new
     @caches = [
@@ -10,7 +10,7 @@ describe Coupler::Matchers::DefaultMatcher do
   end
 
   def create_matcher(spec = {})
-    Coupler::Matchers::DefaultMatcher.new({
+    Coupler::Matcher::Default.new({
       'field'   => 'MomSSN',
       'formula' => '(!a.nil? && a == b) ? 100 : 0',
       'index'   => 1,
@@ -68,7 +68,7 @@ describe Coupler::Matchers::DefaultMatcher do
   describe "in dual-join mode" do
     before(:each) do
       @set1 = [
-        [1, "apple"], [2, "orange"], 
+        [1, "apple"], [2, "orange"],
         [3, "apple"], [4, "potato"], [5, "kiwi"]
       ]
       @set2 = [

@@ -1,6 +1,6 @@
 require File.dirname(__FILE__) + "/../../../spec_helper.rb"
 
-describe Coupler::Matchers::MasterMatcher do
+describe Coupler::Matcher::Master do
   before(:each) do
     @options   = Coupler::Options.new
     @exact     = stub("exact matcher", :field => 'bar', :score => nil, :false_score => 0)
@@ -28,13 +28,13 @@ describe Coupler::Matchers::MasterMatcher do
       Coupler::CachedResource.stub!(:new).with(name.to_s, @options).and_return(obj)
     end
 
-    Coupler::Matchers::ExactMatcher.stub!(:new).and_return(@exact)
-    Coupler::Matchers::DefaultMatcher.stub!(:new).and_return(@default)
+    Coupler::Matcher::Exact.stub!(:new).and_return(@exact)
+    Coupler::Matcher::Default.stub!(:new).and_return(@default)
     Coupler::Scores.stub!(:new).and_return(@scores)
   end
 
   def create_master
-    Coupler::Matchers::MasterMatcher.new(@parent, @options)
+    Coupler::Matcher::Master.new(@parent, @options)
   end
 
   def create_master_with_matchers(options = {})
@@ -82,7 +82,7 @@ describe Coupler::Matchers::MasterMatcher do
     end
 
     it "should create an exact matcher" do
-      Coupler::Matchers::ExactMatcher.should_receive(:new).with({
+      Coupler::Matcher::Exact.should_receive(:new).with({
         'field' => 'bar', 'type' => 'exact',
         'resources' => @scratches
       }, @options).and_return(@exact)
@@ -90,7 +90,7 @@ describe Coupler::Matchers::MasterMatcher do
     end
 
     it "should create a default matcher" do
-      Coupler::Matchers::DefaultMatcher.should_receive(:new).with({
+      Coupler::Matcher::Default.should_receive(:new).with({
         'field' => 'foo', 'formula' => 'a > b ? 100 : 0', 'index' => 1,
         'caches' => @caches.values_at(:birth, :death)
       }, @options).and_return(@default)

@@ -23,7 +23,7 @@ module Coupler
       else
         raise "unsupported scenario type"
       end
-      rnames.each do |rname|  
+      rnames.each do |rname|
         @resources << Coupler::Resource.find(rname)
         @scratches << Coupler::Resource.find("#{rname}_scratch")
         raise "can't find resource '#{rname}'"  if @resources[-1].nil?
@@ -37,7 +37,7 @@ module Coupler
         list | (m['field'] ? [m['field']] : m['fields'])
       end
 
-      @master_matcher = Coupler::Matchers::MasterMatcher.new(self, @options)
+      @master_matcher = Coupler::Matcher::Master.new(self, @options)
       spec['matchers'].each do |m|
         case m['type']
         when 'exact'

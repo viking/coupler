@@ -1,7 +1,7 @@
 module Coupler
-  module Matchers
-    class MasterMatcher
-      attr_reader :field_list, 
+  module Matcher
+    class Master
+      attr_reader :field_list,
                   :matchers,
                   :combining_method,
                   :range,
@@ -31,7 +31,7 @@ module Coupler
         case matcher['type']
         when 'exact'
           matcher['resources'] = @resources
-          @matchers << ExactMatcher.new(matcher, @options)
+          @matchers << Exact.new(matcher, @options)
           @defaults << @matchers.last.false_score
         else
           unless @filled
@@ -40,7 +40,7 @@ module Coupler
           end
           matcher['index']  = @field_list.index(matcher['field'])
           matcher['caches'] = @caches
-          @matchers << DefaultMatcher.new(matcher, @options)
+          @matchers << Default.new(matcher, @options)
           @defaults << 0
         end
       end
