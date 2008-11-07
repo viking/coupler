@@ -1,8 +1,10 @@
 require 'rubygems'
+require 'highline/import'
 require 'sqlite3'
 require 'mysql'
 require 'enumerator'
 
+# fixtures
 pool = {
   'foo' => %w{123456789 234567891 345678912 444444444 567891234 678912345 789123456 891234567 999999999},
   'wicked' => %w{123456789 234567891 345678912 444444444 567891234 678912345 789123456 891234567 999999999},
@@ -15,7 +17,22 @@ pool = {
   'date_of_birth' => %w{1980-07-31 1955-10-25 1985-10-25 1982-03-14 1809-02-12 2015-10-25}
 }
 
-mydbh = Mysql.new('localhost', 'coupler', 'coupler', 'coupler_test_records')
+pass = ask("Enter password:  ") { |q| q.echo = false }
+mydbh = Mysql.new('localhost', 'root', pass, 'mysql')
+
+# create databases if they don't exist
+res = mydbh.query("SHOW DATABASES")
+databases = []
+while (row = res.fetch_row)
+  databases << row[0]
+end
+(%w{coupler_test_records coupler_test_scratch coupler_test_scores} - databases).each do |name|
+  mydbh.query("CREATE DATABASE #{name}")
+  mydbh.query("GRANT ALL PRIVILEGES ON #{name}.* TO coupler@localhost IDENTIFIED BY 'coupler'")
+end
+mydbh.select_db("coupler_test_records")
+
+# populate tables
 %w{leetsauce weaksauce mayhem people}.each do |name|
   sqlfile = File.dirname(__FILE__) + "/#{name}.sqlite3"
   File.delete(sqlfile)  if File.exist?(sqlfile)
